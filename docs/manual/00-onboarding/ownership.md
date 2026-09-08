@@ -13,6 +13,9 @@ person to ask about it, and you are responsible for its pages in this manual bei
 current. If you own something and its `last-verified` dates are a year old, that is your
 backlog.
 
+The one exception is "qualified to supervise," which lists everyone holding a
+qualification rather than assigning a responsibility to one person.
+
 > Do not put email addresses or phone numbers on this page. This repository is public.
 > Names here, contact details in the lab directory.
 
@@ -61,7 +64,8 @@ These are not subsystems but they need a named person.
 | --- | --- | --- |
 | Safety and SOP | `<name>` | Keeps the SOP current, owns [01-safety/](../01-safety/). The SOP is reviewed on a fixed interval — see [sop.md](../01-safety/sop.md). |
 | Vehicle access | `<name>` | Governs access and key control under the SOP. Ask this person if you need access. |
-| Supervision sign-off | `<name>` | Determines when a new person may operate unsupervised. See [01-safety/README.md](../01-safety/README.md). |
+| Qualified to supervise | James, Aidan, Ben | May supervise a new person operating the vehicle. More than one person by design — this is a qualification, not an ownership role. |
+| Supervision sign-off | Tom, lab manager | Releases a new person to operate unsupervised. See [01-safety/README.md](../01-safety/README.md) for the rule. |
 | Base vehicle | `<name>` | Wolverine mechanical work and the dealer service relationship. See [03-base-vehicle/](../03-base-vehicle/). |
 | Electrical / wiring | `<name>` | Physical power distribution on the vehicle. Overlaps Power but is distinct: one owns the design, one owns the wiring. |
 | Network and compute | `<name>` | Volta, the router, addressing. See [network.md](../05-reference/network.md). |

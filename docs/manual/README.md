@@ -54,6 +54,7 @@ than expecting the explanation inline.
 | [sop.md](01-safety/sop.md) | The standard operating procedure governing EXP high bay use |
 | [estop-chain.md](01-safety/estop-chain.md) | Every stop control, what it cuts, and known gaps |
 | [checklists.md](01-safety/checklists.md) | Pre-run and post-run checklists |
+| [hazardous-waste.md](01-safety/hazardous-waste.md) | Disposal instructions for hazardous waste from the vehicle |
 
 ### [02-operations/](02-operations/)
 | Page | What it covers |

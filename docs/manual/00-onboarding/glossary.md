@@ -168,7 +168,7 @@ Frame names appearing throughout the manual. The tree and its extrinsics live in
 
 | Term | Meaning |
 | --- | --- |
-| **System battery** | The 48 V Vatrer battery in the rear of the vehicle powering the research payload. Distinct from the vehicle battery. See [04-subsystems/power/](../04-subsystems/power/). |
+| **System battery** | The 48 V 105 Ah Vatrer battery in the rear of the vehicle powering the research payload. Distinct from the vehicle battery. Note: the SOP's Appendix A still lists a Lossigy unit — that entry is stale. See [04-subsystems/power/](../04-subsystems/power/). |
 | **Vehicle battery** | The 12 V battery under the hood that starts the Wolverine. See [batteries.md](../03-base-vehicle/batteries.md). |
 | **VRLA** | Valve-regulated lead-acid. The battery type the Wolverine ships with. |
 | **AGM** | Absorbed glass mat. A sealed lead-acid construction. The Renegade replacement battery is one. |
@@ -176,6 +176,9 @@ Frame names appearing throughout the manual. The tree and its extrinsics live in
 | **Vatrer** | Brand of the 48 V system battery. |
 | **Buck converter** | Steps a higher DC voltage down to a lower one. How 48 V becomes the 12 V rails. |
 | **Rail** | A distribution branch at a given voltage. Each component is fed by one — recorded on its hardware page. |
+| **Inrush current** | The brief current surge when a circuit is first energized, well above steady-state draw. What the thermistors below exist to limit. |
+| **NTC thermistor** | Negative temperature coefficient thermistor. Resistance falls as it heats, so it limits inrush current when cold and then gets out of the way. It must cool back to room temperature before it can limit again — the reason power cycling has a mandatory wait. See [power-off.md](../02-operations/power-off.md). |
+| **Wheel chock** | A wedge placed against a tire to stop the vehicle rolling. Required whenever IBEX is parked in the high bay. |
 | **Ultramatic** | Yamaha's V-belt continuously variable transmission with all-wheel engine braking. |
 | **YFI** | Yamaha Fuel Injection. |
 | **On-Command** | Yamaha's selectable drive system: 2WD, 4WD, and full differential lock. |
@@ -196,6 +199,26 @@ Installation for all of these is in [workstation-setup.md](workstation-setup.md)
 | **D2XX** | FTDI's direct driver interface, built into `libft4222` on Linux. |
 | **`ftdi_sio`** | The kernel serial driver that can claim an FTDI device and block D2XX access. |
 | **udev rule** | A persistent device permission rule. Preferred over `chmod`, which resets on replug. |
+
+## University and compliance
+
+Terms from the SOP and the University's safety and waste processes. The SOP is the
+authority for all of these — see [sop.md](../01-safety/sop.md).
+
+| Term | Meaning |
+| --- | --- |
+| **IER** | The Northeastern lab the SOP is written around. RIVeR operates within it. TODO(verify): expansion, and RIVeR's exact relationship to it. |
+| **OARS** | The Northeastern office that manages the EXP building and reviews SOP addenda. TODO(verify): expansion. |
+| **Public Safety** | The Northeastern department that opens the high bay garage door, handles the ballasts, and clears the sidewalk for vehicle movement. |
+| **SciShield** | The University's lab safety platform. Hosts the required safety training and the hazardous waste request system. |
+| **Padir Lab** | The lab name IBEX's waste requests are filed under in SciShield. See [hazardous-waste.md](../01-safety/hazardous-waste.md). |
+| **Policy 614** | Northeastern's Policy on Use of Vehicles for University Purposes. Applies to IBEX because it is a University vehicle. |
+| **LOTO** | Lockout/tagout. Isolating an energy source and marking it so it cannot be re-energized while someone is working on it. |
+| **Ballasts** | The barriers in front of the high bay garage door. Lowered and replaced by Public Safety around any vehicle movement. |
+| **Air exchange delay** | The wait between driving a vehicle into the high bay and closing the door, so exhaust clears. Duration is still being determined by carbon monoxide sampling. |
+| **SAA** | Satellite Accumulation Area. Where filled hazardous waste containers are staged for pickup. |
+| **Lincoln MKZ** | The other autonomous vehicle sharing the EXP high bay, owned by a different lab. Covered by the same SOP but not by this manual. |
+| **Addendum** | How a new vehicle is added to the SOP's scope, subject to OARS and Provost's Office approval. |
 
 ## Places and contacts
 
