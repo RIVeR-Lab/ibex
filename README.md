@@ -355,7 +355,13 @@ The Ximea and Alvium cameras can be connected via USB in any order.
 
 > **Recommended:** Plug each camera into a separate USB controller/bus where possible and do not plug into USB splitters. All three cameras combined have a data throughput of roughly 250MBps at 10 fps. A low USB bandwidth can cause dropped frames.
 
-After connecting all cameras, set the correct USB permissions:
+#### USB Camera Permissions
+
+After connecting all cameras, set the correct USB permissions.
+
+##### Option A — Temporary (per session)
+
+This resets when the device is unplugged or the machine reboots, so it's mainly useful for a quick test:
 
 ```bash
 # List connected USB devices and find the bus and device numbers
@@ -366,6 +372,56 @@ sudo chmod 777 /dev/bus/usb/[bus_number]/[device_number]
 ```
 
 Run the `chmod` command three times — once for each camera (Pleora/IMEC, Ximea, Allied Vision).
+
+##### Option B — Permanent (udev rule, recommended)
+
+A udev rule reapplies the permissions automatically every time a camera is plugged in or the machine boots, so you never have to run `chmod` again. udev matches on the device's vendor/product IDs rather than bus/device numbers (which change on every reconnect), so the rule is stable.
+
+First, find each camera's vendor and product ID with `lsusb`. Each line looks like:
+
+```
+Bus 002 Device 005: ID 24c2:1234 XIMEA ...
+```
+
+The `ID` field is `vendorID:productID` — here `24c2` is the vendor and `1234` is the product.
+
+Create a rules file:
+
+```bash
+sudo nano /etc/udev/rules.d/99-hsi-cameras.rules
+```
+
+Add one line per camera, substituting the IDs you found (the `idProduct` line is optional — including it makes the rule specific to that exact model; omitting it applies to every device from that vendor):
+
+```
+# Pleora / IMEC
+SUBSYSTEM=="usb", ATTR{idVendor}=="xxxx", ATTR{idProduct}=="xxxx", MODE="0666"
+# Ximea
+SUBSYSTEM=="usb", ATTR{idVendor}=="24c2", ATTR{idProduct}=="xxxx", MODE="0666"
+# Allied Vision
+SUBSYSTEM=="usb", ATTR{idVendor}=="xxxx", ATTR{idProduct}=="xxxx", MODE="0666"
+```
+
+`MODE="0666"` grants read/write to all users, which is the equivalent of your `chmod 777` for a character device (execute permission is meaningless here, so `0666` is the correct value rather than `0777`). If you'd rather scope access to a group instead of all users, use `MODE="0660", GROUP="plugdev"` and add your user to that group:
+
+```bash
+sudo usermod -aG plugdev $USER
+```
+
+Reload the rules and reapply them without rebooting:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Then unplug and replug each camera (or reboot) so the new permissions take effect. Verify with:
+
+```bash
+ls -l /dev/bus/usb/[bus_number]/[device_number]
+```
+
+You should see `crw-rw-rw-` in the permissions column, confirming the rule applied.
 
 ### 6: Start and View Camera Output
 
