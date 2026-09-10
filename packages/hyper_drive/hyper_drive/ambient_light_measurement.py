@@ -1,4 +1,5 @@
 import os
+import array
 import numpy as np
 import matplotlib.pyplot as plt
 import rclpy
@@ -110,12 +111,17 @@ class LightMeasure(Node):
         self.S_white_ximea = white_data[ximea_spec_lamba]
         self.S_white_imec = white_data[imec_spec_lamba]
 
-        plt.plot(self.static_wavelengths_ximea, self.S_dark_ximea, label = "S_dark_ximea")
-        plt.plot(self.static_wavelengths_ximea, self.S_white_ximea, label = "S_white_ximea")
-        plt.plot(self.static_wavelengths_imec, self.S_dark_imec, label = "S_dark_imec")
-        plt.plot(self.static_wavelengths_imec, self.S_white_imec, label= "S_white_imec")
-        plt.legend()
-        #plt.show()
+        # Debug plotting of the S references. Disabled by default: at ~20 Hz
+        # this accumulated lines on one figure every callback (a memory/CPU
+        # leak) and was never shown. Set self.debug_plot = True to inspect.
+        if getattr(self, 'debug_plot', False):
+            plt.clf()
+            plt.plot(self.static_wavelengths_ximea, self.S_dark_ximea, label="S_dark_ximea")
+            plt.plot(self.static_wavelengths_ximea, self.S_white_ximea, label="S_white_ximea")
+            plt.plot(self.static_wavelengths_imec, self.S_dark_imec, label="S_dark_imec")
+            plt.plot(self.static_wavelengths_imec, self.S_white_imec, label="S_white_imec")
+            plt.legend()
+            plt.pause(0.001)
 
     def cubes_callback(self, msg):
         '''
@@ -198,7 +204,11 @@ class LightMeasure(Node):
 
         #ximea DataCube
         ros_ximea.header = h
-        ros_ximea.data = np.nan_to_num(ximea_cube.flatten().astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+        # DataCube.data (float32[]) must be array.array('f'), NOT a numpy float32
+        # ndarray -- the message setter rejects ndarrays (np.float32 scalars are
+        # not Python floats). Matches how synchronous_cubes publishes.
+        clean_ximea = np.nan_to_num(ximea_cube.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+        ros_ximea.data = array.array('f', np.ascontiguousarray(clean_ximea, dtype=np.float32).tobytes())
         ros_ximea.width, ros_ximea.height, ros_ximea.lam = tuple(ximea_cube.shape)
         ros_ximea.qe = ximea_msg.qe 
         ros_ximea.fwhm_nm = ximea_msg.fwhm_nm
@@ -206,7 +216,8 @@ class LightMeasure(Node):
 
         #imec DataCube
         ros_imec.header = h
-        ros_imec.data = np.nan_to_num(imec_cube.flatten().astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+        clean_imec = np.nan_to_num(imec_cube.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+        ros_imec.data = array.array('f', np.ascontiguousarray(clean_imec, dtype=np.float32).tobytes())
         ros_imec.width, ros_imec.height, ros_imec.lam = tuple(imec_cube.shape)
         ros_imec.qe = imec_msg.qe
         ros_imec.fwhm_nm = imec_msg.fwhm_nm
