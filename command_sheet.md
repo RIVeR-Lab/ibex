@@ -69,7 +69,7 @@ lsusb
 sudo chmod 777 /dev/bus/usb/XXX/XXX
 ```
 ```bash
-ros2 launch hyper_drive synchronous_cameras_launch.py
+ros2 launch hyper_drive ambient_light_launch.py
 ```
 
 ### View Hyperspectral and RGB
