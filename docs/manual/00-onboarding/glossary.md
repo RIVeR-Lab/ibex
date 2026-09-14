@@ -32,7 +32,7 @@ abbreviations from Kairos documentation; those are tracked in
 | --- | --- |
 | **P4S4** | Kairos Pronto 4 Series 4. The drive-by-wire system that actuates throttle, brake, steering, and transmission. See [kairos-p4s4.md](../04-subsystems/motion/hardware/kairos-p4s4.md). |
 | **Kairos Autonomi** | Manufacturer of the P4S4 and the Shepherd application. |
-| **OCU** | Operator Control Unit. The rugged laptop the operator uses to teleoperate or oversee IBEX. |
+| **OCU** | Operator Control Unit. The external rugged laptop the operator uses to test, teleoperate or oversee the P4S4 when not using RIVEr-Volta. A Windows Machine provided by Kairos Autonomi to go with the P4S4. |
 | **Shepherd** | The Kairos vendor application for the OCU. Runs on the rugged laptop, not on Volta, and is **not currently in IBEX's control path** — `shared_link_bridge` is used in its place. Not in our repository. See [shepherd.md](../04-subsystems/motion/software/shepherd.md). |
 | **SharedLink** / **djSharedLink** | The Kairos communication protocol between the P4S4 and a controlling computer. Wrapped for ROS 2 by `shared_link_bridge`. |
 | **Deadman** | A control that must be held for drive input to be accepted. Releasing it stops commanded motion. |

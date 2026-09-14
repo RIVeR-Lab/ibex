@@ -177,30 +177,50 @@ irrelevant; cutting a downstream one leaves everything upstream live.
 ```
 System battery (9)
   └─ Main e-stop (5) ─ Main power button (6)
-       ├─ P4S4 ─ VIM (1,2,3,4) ─ actuators
-       ├─ AC adapter (8)
+       ├─ Kairos box
+       │    ├─ P4S4 ─ VIM (1,2,3,4) ─ actuators
+       │    ├─ GPS
        │    ├─ SICK picoScan 150
        │    └─ Router
+       ├─ AC adapter (8)
+       │    └─ Monitor
        └─ Compute and Sensing box (7)
             ├─ Volta
-            │    ├─ Alvium RGB camera      [USB-powered from Volta]
-            │    └─ Point spectrometers    [USB-powered from Volta]
-            ├─ Ouster OS1-64 (+ control box, green LED inside the box)
-            └─ Hyperspectral cameras
+            │    ├─ Ximea VNIR camera    [USB-powered from Volta]
+            │    ├─ Alvium RGB camera    [USB-powered from Volta]
+            │    └─ Insta360 X4          [USB-powered, also has its own battery]
+            ├─ Ouster OS1-64 + control box
+            ├─ IMEC SWIR camera
+            └─ Ibsen NIR and VIS-NIR spectrometers
 
 Vehicle key (10) ─ Engine        [independent of everything above]
-Insta360 (16)                    [self-powered, independent]
 ```
 
-> TODO(verify): this tree is inferred from the power-on order plus the USB and enclosure
-> relationships, not from tracing the harness. Confirm it before anyone relies on it. The
-> open questions are whether the main e-stop is genuinely upstream of both the AC adapter
-> and the Compute and Sensing box, and whether the Kairos actuators sit on the Kairos box
-> or on a separate rail.
+> TODO(verify): the series relationships above the boxes are inferred from the power-on
+> order rather than traced. Confirm the main e-stop is genuinely upstream of all branches.
 
-Note what the tree implies: **cutting the Compute and Sensing box kills Volta, which kills
-the Alvium and both spectrometers.** One button takes out four devices, and three of them
-have no indicator of their own.
+Two things the tree implies, and they are not symmetric:
+
+**Cutting the Kairos box removes the actuators and their command path together.** The
+router carrying commands from Volta to the P4S4 is on the same box as the P4S4 itself, so
+there is no state where powered actuators are waiting on a dead link.
+
+**Cutting the Compute and Sensing box leaves the actuators armed with nothing commanding
+them.** Volta goes down; the P4S4, the VIM, and the router stay up. That is safe as
+built — the deadman is a required enable and the actuators return to neutral when it is
+released — but it is worth understanding, because "I killed compute" is not the same as "I
+disarmed the vehicle."
+
+It also takes out seven devices: Volta directly, the three USB-powered cameras with it,
+plus the Ouster, the SWIR camera, and both spectrometers. Only the Ouster's control box has
+an indicator of its own; the rest have to be checked from a terminal on Volta, which is
+exactly the machine that just went down.
+
+Note what the tree implies: **cutting the Compute and Sensing box takes out seven
+devices** — Volta directly, and with it the three USB-powered cameras, plus the Ouster,
+the SWIR camera, and both spectrometers. Only the Ouster's control box has an indicator of
+its own; everything else has to be checked from a terminal, which is impossible once Volta
+is down.
 
 ## Known gaps
 

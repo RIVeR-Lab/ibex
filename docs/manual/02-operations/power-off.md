@@ -50,8 +50,10 @@ them.
    on as soon as it receives power, so it never shuts down on its own — pulling the box
    power on a running Volta is an unclean shutdown.
 
-   The other cameras and both point spectrometers are USB-powered from Volta, so shutting
-   it down powers them off. They need no separate action.
+   The **Ximea VNIR camera, the Alvium RGB camera, and the Insta360** are USB-powered from
+   Volta, so shutting it down powers them off. They need no separate action. The IMEC SWIR
+   camera and both point spectrometers are fed by the Compute and Sensing box instead and
+   go dark at step 6.
 
 5. Turn off the **Insta360** camera.
 
@@ -73,7 +75,8 @@ them.
 | Compute and Sensing box | Red LED dark |
 | Kairos box | Red LED dark, main e-stop engaged |
 | AC adapter | Three LEDs on the far right dark, switch off |
-| Router | Green LEDs dark through the enclosure lid |
+| Monitor | Dark — it is fed by the AC adapter |
+| Router | Green LEDs dark through the enclosure lid. It is on the Kairos box, so it goes dark at step 8, not step 7 |
 | System battery | The power button's green illumination is out |
 | Insta360 | Powered off at the camera body |
 | Volta | No independent indicator — see below |

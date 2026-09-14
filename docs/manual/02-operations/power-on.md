@@ -48,33 +48,40 @@ in [ownership.md](../00-onboarding/ownership.md).
 
 4. Switch on the **AC adapter**.
 
-5. Confirm all three are powered before continuing:
+5. Confirm the following before continuing.
+
+   Newly energized by step 4:
 
    | Item | How to confirm |
    | --- | --- |
    | AC adapter | The power switch is flipped and the three LEDs on the far right of the adapter are lit |
+   | Monitor | Comes on. It is the AC adapter's only load |
+
+   Already up from step 3, on the Kairos box — verify rather than switch:
+
+   | Item | How to confirm |
+   | --- | --- |
    | Router | Green LEDs visible through the clear lid of its weatherproof enclosure |
    | SICK picoScan 150 | Confirm the device is reachable. TODO(verify): add the command. |
+
+   The router being on the Kairos box matters: it carries the command path from Volta to
+   the P4S4, so it comes up and goes down with the actuators it serves.
 
 6. Press the **power button** on the **Compute and Sensing box**.
    - The red LED illuminates. If it does not, stop.
 
-7. Confirm all three are powered before continuing:
+7. Confirm the Compute and Sensing box's loads are up before continuing:
 
    | Item | How to confirm |
    | --- | --- |
    | Volta | Attach a monitor over HDMI, or SSH in. Volta is set in BIOS to power on as soon as it receives power, so if the box is live Volta should be coming up on its own |
    | Ouster OS1-64 | The Ouster control box sits inside the Compute and Sensing box and lights a green LED when powered. Then confirm the sensor is reachable. TODO(verify): add the command. The sensor also becomes warm to the touch once it is spinning |
-   | Hyperspectral system | Confirm the devices enumerate from a terminal on Volta. TODO(verify): add the command. |
+   | IMEC SWIR camera | Confirm it enumerates from a terminal on Volta. TODO(verify): add the command. |
+   | Ibsen NIR and VIS-NIR spectrometers | Confirm both enumerate from a terminal on Volta. TODO(verify): add the command. |
 
-   The Alvium RGB camera and the two point spectrometers need no action here. They are
-   USB-connected to Volta and draw power from it, so they come up with Volta. No cables
-   need connecting — every USB device stays plugged in between sessions.
-
-   > TODO(verify): the source describes the hyperspectral system as three cameras and two
-   > point spectrometers. If the Alvium is one of those three, it is USB-powered off Volta
-   > rather than fed by the box — so the three do not share a power path and should not be
-   > confirmed as one item. Establish which cameras the box actually feeds.
+   The **Ximea VNIR camera, the Alvium RGB camera, and the Insta360** are not fed by this
+   box. They draw USB power from Volta, so they come up with Volta and need no action here.
+   The Insta360 also has its own battery.
 
 8. Power the external sensors. The Insta360's power button is on the side of the camera
    body.

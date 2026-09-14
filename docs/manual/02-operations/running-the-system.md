@@ -227,16 +227,25 @@ ros2 launch spectrometer_drivers ibsen_launch.py
 > TODO(verify): confirm whether `ibsen_launch.py` brings up both the NIR and the VIS-NIR
 > spectrometer or only one, and if only one, how the second is started.
 
+### State estimation
+
+```bash
+ros2 launch ibex_state graph_frontender.launch.py
+```
+
+Runs the GTSAM factor graph. Configuration is in
+`packages/ibex_state/config/graph_frontender_config.yaml`.
+
+> TODO(verify): confirm what this expects to be running first. The graph consumes
+> KISS-ICP odometry, the Ouster IMU, and GPS arriving through `shared_link_bridge`, so it
+> presumably needs all three up. Record the required inputs and what happens if one is
+> absent.
+
 ### Not currently launched
 
-- **SICK picoScan 150** — currently unused. It is powered in
-  [power-on.md](power-on.md) step 5 but no driver is run against it. If that changes, the
-  launch command belongs here.
-- **`ibex_state`** — one of the ten packages, with no current invocation.
-
-> TODO(verify): `ibex_state` has not been updated and has no working launch command.
-> Record one here once it exists, or mark the package dormant on its software page so a
-> new person does not lose time looking for how to start it.
+- **SICK picoScan 150** — currently unused. It is powered by the Kairos box and comes up
+  at [power-on.md](power-on.md) step 3, but no driver is run against it. If that changes,
+  the launch command belongs here.
 
 ## 6. Stopping the system
 
