@@ -87,13 +87,16 @@ Applies whether you are running in the EXP high bay or in the field.
 ### Stop controls
 
 - [ ] Main e-stop unlocked and its position known to everyone present
+- [ ] Vehicle integration module located, and everyone present knows where its **pause**
+      switch and e-stop are, and how to read its enabled LEDs
 - [ ] Deadman tested before any commanded motion
-- [ ] Everyone knows that manual takeover is not a guaranteed override — see
+- [ ] Everyone knows that manual takeover is not a guaranteed override, and that **turning
+      the key off does not stop the actuators** — see
       [estop-chain.md](estop-chain.md)
 
 > TODO(verify): this section should include a positive functional test of the main e-stop
-> before each run. Write it once [estop-chain.md](estop-chain.md) establishes what the
-> e-stop actually cuts.
+> and the VIM pause switch before each run. Write it once
+> [estop-chain.md](estop-chain.md) establishes what each one actually cuts.
 
 ### Then
 
@@ -137,11 +140,16 @@ Begin after [power-off.md](../02-operations/power-off.md) completes.
 
 ### Secure the vehicle
 
+- [ ] Vehicle integration module switched to **pause** and its e-stop engaged
+- [ ] VIM LEDs confirm it is not enabled
 - [ ] Vehicle in park with the parking brake set
 - [ ] Wheel chocks placed at the rear wheels
 - [ ] Main e-stop engaged
 - [ ] Doors closed
 - [ ] Floor cleaned and dried if anything was tracked in
+
+> A vehicle with the key removed but the VIM still armed is not inert. Disarming comes
+> first.
 
 ### Consumables
 

@@ -25,6 +25,10 @@ If you remember nothing else from this page:
   lifting heavy components.
 - **Disable autonomy before touching sensors, controllers, or wiring.** An engaged
   actuator can move without warning.
+- **Turning the key off does not make the vehicle safe to work on.** The engine stops, but
+  the P4S4 actuators stay powered and can still move the steering, brake, throttle, and
+  transmission. Disarm at the vehicle integration module before working near a linkage —
+  see [estop-chain.md](estop-chain.md).
 - **Disconnect power before any electrical work.**
 - **Seatbelts on whenever the vehicle is moving**, including when someone else is driving
   it and including teleoperation with occupants aboard.
@@ -103,9 +107,18 @@ Ignoring it damages components rather than people, but it is still a rule.
 
 ### Autonomous system safety
 
-Disable autonomous functions before working on sensors, controllers, or software. An
-actuator that is still enabled can drive the steering or throttle while your hands are
-somewhere they should not be.
+Disarm the P4S4 at the vehicle integration module before working on sensors, controllers,
+wiring, or any actuator linkage. Switch it to **pause** — the switch is non-latching, so
+clicking it back to run restores the armed state without a power cycle. Any one of the
+VIM's four controls disarms, so use whichever is nearest.
+
+Then confirm it worked: **the VIM LEDs show whether it is enabled.** Read them before your
+hands go anywhere near a linkage. An uncommanded actuator and an unpowered one look
+identical until you check.
+
+Turning the key off is not a substitute. The engine stops; the actuators do not. An
+actuator that is still powered can drive the steering or throttle while your hands are
+somewhere they should not be, engine or no engine. See [estop-chain.md](estop-chain.md).
 
 Clear the test area of people and obstacles before any motion. Use cones or barriers to
 establish a perimeter.

@@ -33,9 +33,11 @@ abbreviations from Kairos documentation; those are tracked in
 | **P4S4** | Kairos Pronto 4 Series 4. The drive-by-wire system that actuates throttle, brake, steering, and transmission. See [kairos-p4s4.md](../04-subsystems/motion/hardware/kairos-p4s4.md). |
 | **Kairos Autonomi** | Manufacturer of the P4S4 and the Shepherd application. |
 | **OCU** | Operator Control Unit. The rugged laptop the operator uses to teleoperate or oversee IBEX. |
-| **Shepherd** | The Kairos application running on the OCU. Not in our repository. See [shepherd.md](../04-subsystems/motion/software/shepherd.md). |
+| **Shepherd** | The Kairos vendor application for the OCU. Runs on the rugged laptop, not on Volta, and is **not currently in IBEX's control path** — `shared_link_bridge` is used in its place. Not in our repository. See [shepherd.md](../04-subsystems/motion/software/shepherd.md). |
 | **SharedLink** / **djSharedLink** | The Kairos communication protocol between the P4S4 and a controlling computer. Wrapped for ROS 2 by `shared_link_bridge`. |
 | **Deadman** | A control that must be held for drive input to be accepted. Releasing it stops commanded motion. |
+| **VIM** / **vehicle integration module** | The unit that arms and disarms the P4S4 actuators. Carries an e-stop, a non-latching run/pause switch, an on/off switch, and a manual/auto switch — all four in series, so any one disarms. LED indicators show whether it is enabled. The only place actuator motion can be stopped; the key does not stop it. See [estop-chain.md](../01-safety/estop-chain.md). |
+| **Armed** | The P4S4 is powered and the VIM is released, set to run, with both side switches in position. Actuators can move whether or not the engine is running. |
 | **Back-drivable** | Whether an actuator can be moved by hand while engaged. The P4S4 has known problems here — see [estop-chain.md](../01-safety/estop-chain.md). |
 | **E-stop** | Emergency stop. IBEX has several, and they do not all cut the same things. See [estop-chain.md](../01-safety/estop-chain.md). |
 | **JAUS** | Joint Architecture for Unmanned Systems. A protocol standard Shepherd can be configured against. |
@@ -114,7 +116,7 @@ Ten packages under `packages/`. Four are git submodules.
 | `spectrometer_interfaces` | in-repo | Message and service definitions for `spectrometer_drivers`. |
 | `ouster-ros` | submodule, RIVeR-Lab fork | Ouster OS1-64 lidar driver. |
 | `insta360_ros_driver` | submodule, RIVeR-Lab fork | Insta360 X4 camera driver. |
-| `shared_link_bridge` | submodule, RIVeR-Lab fork | Kairos P4S4 driver. Implements the SharedLink protocol for ROS 2. |
+| `shared_link_bridge` | submodule, RIVeR-Lab fork | Kairos P4S4 driver. Implements the SharedLink protocol for ROS 2, running on Volta in place of the vendor's Shepherd application. |
 | `kiss-icp` | submodule, tracks upstream | Lidar odometry front-end. Not a fork — points at `PRBonn/kiss-icp`. |
 
 ## State estimation
@@ -174,6 +176,8 @@ Frame names appearing throughout the manual. The tree and its extrinsics live in
 | **AGM** | Absorbed glass mat. A sealed lead-acid construction. The Renegade replacement battery is one. |
 | **Renegade** | Brand of the AGM replacement vehicle battery. Has charging rules that differ from ordinary batteries — see [batteries.md](../03-base-vehicle/batteries.md). |
 | **Vatrer** | Brand of the 48 V system battery. |
+| **Compute and Sensing box** | The power distribution box feeding Volta, the Ouster, and the hyperspectral cameras. Called the "hyperspectral 2.0 box" or "HyperDrive 2.0 Power Box" in older notes — those names are retired, since the box feeds the vehicle's compute as well. |
+| **Kairos box** | The power distribution box feeding the P4S4. Carries the main e-stop and the main power button. |
 | **Buck converter** | Steps a higher DC voltage down to a lower one. How 48 V becomes the 12 V rails. |
 | **Rail** | A distribution branch at a given voltage. Each component is fed by one — recorded on its hardware page. |
 | **Inrush current** | The brief current surge when a circuit is first energized, well above steady-state draw. What the thermistors below exist to limit. |

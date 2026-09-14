@@ -356,7 +356,38 @@ ldconfig -p | grep hsi_api
 
 `libhsi_api.so.1.0` should be listed.
 
-## 6. Working with submodules
+## 6. Foxglove
+
+Used for visualizing live and recorded data. Two pieces, installed in different places.
+
+### foxglove_bridge — on Volta
+
+The bridge runs on the robot and serves data to Studio over the network:
+
+```bash
+sudo apt install ros-humble-foxglove-bridge
+```
+
+### Foxglove Studio — on whichever machine you view from
+
+1. Go to <https://foxglove.dev/download>.
+2. Download the package matching your system architecture.
+3. Install it:
+
+   ```bash
+   sudo apt install ./foxglove-studio-*.deb
+   ```
+
+Later updates come through apt normally:
+
+```bash
+sudo apt update && sudo apt install foxglove-studio
+```
+
+Launching both is covered in
+[running-the-system.md](../02-operations/running-the-system.md).
+
+## 7. Working with submodules
 
 Reset all submodules to the commits this repository pins:
 
@@ -386,7 +417,7 @@ Three of the four submodules are RIVeR-Lab forks and one tracks upstream directl
 changes where your commits should go. See the Fork status section on each package's
 software page under [`04-subsystems/`](../04-subsystems/).
 
-## 7. Acquiring the vendor SDKs directly
+## 8. Acquiring the vendor SDKs directly
 
 The copies under `docs/place_in_opt/` are the normal path. Use this section if you need a
 fresh download or a different version.
