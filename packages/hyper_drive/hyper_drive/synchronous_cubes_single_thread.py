@@ -50,9 +50,6 @@ class DataCubesGenerator(Node):
         self.get_logger().info('Loading Context ...')
         # Lock for camera setting updates
         self.lock = threading.Lock()
-        # Reusable 2-worker pool so XIMEA and IMEC acquisition can overlap.
-        # Created once (not per frame) to avoid thread-spawn overhead each cycle.
-        self.acq_executor = ThreadPoolExecutor(max_workers=2)
         # Setup callback for data
         self.package_share_dir = get_package_share_directory('hyper_drive')
 
@@ -441,24 +438,6 @@ class DataCubesGenerator(Node):
         f'Publish:{t11-t10:.3f}'
         )
 
-    def _acquire_cube(self, device, frame, pipeline, cube, label):
-        '''
-        Acquire, push, and retrieve one camera's cube. Runs on a worker thread.
-
-        IMPORTANT: this must NOT touch self.lock. The caller (timer_callback)
-        holds the lock for the whole parallel section; threading.Lock is not
-        reentrant, so acquiring it here would deadlock. Each worker only touches
-        its own camera's handles, so there is no shared state to guard between
-        the two workers. This only overlaps in wall-clock time if the SDK calls
-        release the GIL while waiting on hardware.
-        '''
-        t_start = time.time()
-        HSI_CAMERA.AcquireFrame(device, frame=frame)
-        HSI_MOSAIC.PushFrame(pipeline, frame)
-        HSI_MOSAIC.GetCube(pipeline, cube, timeout_ms=1000)
-        py_cube = HSI_COMMON.CubeAsArray(cube, BSQ=False)
-        return label, py_cube, time.time() - t_start
-
     def timer_callback(self):
         '''
         Run central processing loop for camera
@@ -470,41 +449,38 @@ class DataCubesGenerator(Node):
             current_time = self.get_clock().now().nanoseconds / 1e9
             if current_time > self.time_future:
                 self.time_future = current_time + self.time_wait
-                # Hold the lock across the whole parallel acquisition so a
-                # concurrent set_camera_params() (which pauses/reconfigures a
-                # camera) cannot run mid-acquisition. The two cameras fan out to
-                # worker threads INSIDE the lock and are joined (.result())
-                # before the lock releases -- workers never take the lock.
                 with self.lock:
+                    #HSI_CAMERA.Trigger(self.x_device)
+                    #HSI_CAMERA.Trigger(self.i_device)
+                    
                     t0 = time.time()
-                    x_future = self.acq_executor.submit(
-                        self._acquire_cube, self.x_device, self.x_frame,
-                        self.x_pipeline, self.x_cube, 'XIMEA')
-                    i_future = self.acq_executor.submit(
-                        self._acquire_cube, self.i_device, self.i_frame,
-                        self.i_pipeline, self.i_cube, 'IMEC')
+                    HSI_CAMERA.AcquireFrame(self.x_device, frame=self.x_frame)
+                    t0_x = time.time()
+                    HSI_CAMERA.AcquireFrame(self.i_device, frame=self.i_frame)
+                    t0_i = time.time()
 
-                    # .result() blocks until each worker finishes and re-raises
-                    # any worker exception here, so the except-block below still
-                    # catches failures and triggers restart_camera(). Both joins
-                    # happen inside the with-block, so the lock is held until
-                    # both cameras are done.
-                    _, x_py_cube, x_dt = x_future.result()
-                    _, i_py_cube, i_dt = i_future.result()
-                    t_acq = time.time() - t0
+                    t1 = time.time()               
+                    HSI_MOSAIC.PushFrame(self.x_pipeline, self.x_frame)
+                    t1_x = time.time()
+                    HSI_MOSAIC.PushFrame(self.i_pipeline, self.i_frame)
+                    t1_i = time.time()
+                    
+                    t2 = time.time()
+                    HSI_MOSAIC.GetCube(self.x_pipeline, self.x_cube, timeout_ms=1000)
+                    t2_x = time.time()
+                    HSI_MOSAIC.GetCube(self.i_pipeline, self.i_cube, timeout_ms=1000)
+                    t2_i = time.time()
+                    
+                    t3 = time.time()
+                    x_py_cube = HSI_COMMON.CubeAsArray(self.x_cube, BSQ=False)
+                    i_py_cube = HSI_COMMON.CubeAsArray(self.i_cube, BSQ=False)
 
                     self.get_logger().info(f'Cube shapes XIMEA: {x_py_cube.shape}, IMEC: {i_py_cube.shape}, VIMBA: {self.raw_img.width}x{self.raw_img.height}')
 
-                    t3 = time.time()
                     self.publish_cubes(x_py_cube, i_py_cube)
-                    t_pub = time.time() - t3
-
-                    # Parallel timing: per-worker durations plus the wall-clock
-                    # for the overlapped section. If acquire(parallel) is close
-                    # to max(x_dt, i_dt) the SDK is releasing the GIL and this is
-                    # helping; if it's close to x_dt + i_dt, the GIL is held and
-                    # the work is still serial.
-                    self.get_logger().info(f'Acquire XIMEA:{x_dt:.3f} Acquire IMEC:{i_dt:.3f} Parallel acquire:{t_acq:.3f} (serial would be ~{x_dt+i_dt:.3f}) Publish:{t_pub:.3f}')
+                    
+                    t4 = time.time()
+                    self.get_logger().info(f'Acquire Ximea:{t0_x-t0:.3f} Acquire Imec:{t0_i-t0_x:.3f} Push Ximea:{t1_x-t1:.3f} Push Imec:{t1_i-t1_x:.3f} GetCube Ximea:{t2_x-t2:.3f} GetCube Imec:{t2_i-t2_x:.3f} Publish:{t4-t3:.3f}')
 
         except Exception as e:
             self.get_logger().error(traceback.format_exc())
@@ -516,7 +492,6 @@ class DataCubesGenerator(Node):
         Custom shutdown behavior
         '''
         self.get_logger().info('Cleaning up node for the cameras')
-        self.acq_executor.shutdown(wait=True)
         HSI_CAMERA.Pause(self.x_device)
         HSI_CAMERA.Stop(self.x_device)
         HSI_CAMERA.CloseDevice(self.x_device)
