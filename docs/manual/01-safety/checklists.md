@@ -50,6 +50,12 @@ Applies whether you are running in the EXP high bay or in the field.
 > The spotter with stop authority calls a halt and everyone stops. That call is never
 > questioned in the moment.
 
+> TODO(verify): the VIM — the only control that stops actuator motion — is inside the cab
+> and reachable from the driver's seat. Establish which control a spotter standing outside
+> the vehicle is expected to use, and confirm they can reach it. Until then the spotter's
+> stop authority is a verbal call to the driver rather than a physical action, and everyone
+> present should know that.
+
 ### Safety equipment
 
 - [ ] ABC or CO2 fire extinguisher rated for electrical and fuel fires is **in the

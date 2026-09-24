@@ -86,18 +86,23 @@ That redundancy is the useful property: you do not have to remember which contro
 
 ### Confirming the actuators are unpowered
 
-**The VIM carries LED indicators showing whether it is enabled.** Check them. They are the
-positive confirmation that the actuators are unpowered rather than merely uncommanded —
-which is the distinction that protects anyone with their hands on a linkage.
+**The VIM carries two green LEDs, Ready and Enabled.** Enabled lit means the actuators can
+move. Check it. This is the positive confirmation that the actuators are unpowered rather
+than merely uncommanded — the distinction that protects anyone with their hands on a
+linkage.
 
 Two independent checks before working near an actuator:
 
 1. At least one of the four controls above is in its off position.
-2. The VIM LEDs show not enabled.
+2. The Enabled LED is dark. Ready lit with Enabled dark is the safe state: the unit is
+   powered and working, and the actuators are not live.
 
-> TODO(verify): record which LED means what, and its colour and location on the unit. "The
-> LEDs show whether it is enabled" is only followable by someone who already knows which
-> LED to read.
+Both LEDs dark is a different situation — that may mean the unit has lost power rather
+than that it is disarmed.
+
+> TODO(verify): record each LED's position on the unit. Both are green, as are the other
+> P4S4 indicators, so colour does not identify them. See
+> [vehicle-integration-module.md](../04-subsystems/motion/hardware/vehicle-integration-module.md).
 
 **The run/pause switch is the preferred disarm.** It stays where you put it, needs no twist
 or key to reset, and clicking back to run restores the armed state directly — so it does
