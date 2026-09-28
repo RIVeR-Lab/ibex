@@ -273,6 +273,11 @@ Ouster alike.
 
 ## Known issues
 
+- **The P4S4 ethernet cable is shared with the OCU.** To use Shepherd for steering
+  calibration, that cable is moved from the router to the OCU. Left there, Volta cannot
+  reach the P4S4 and `shared_link_bridge` fails in a way that looks like a software fault.
+  Check the cable is in the router before blaming the code. See
+  [kairos-p4s4-ocu.md](../04-subsystems/motion/hardware/kairos-p4s4-ocu.md).
 - **CycloneDDS breaks the Alvium.** Do not set
   `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, despite the VimbaX documentation recommending
   it. The camera initializes and never streams. Our launch files use the default FastRTPS.

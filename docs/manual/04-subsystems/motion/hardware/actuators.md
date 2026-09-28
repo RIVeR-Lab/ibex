@@ -162,13 +162,13 @@ Vendor installation is covered by the Kairos Installation Guide in
 ### Calibration
 
 Steering requires a baseline: the vehicle's wheels straight and the steering wheel centred,
-then a calibration action. In the vendor workflow that is done from Shepherd, which IBEX
-does not use for control.
+then a calibration action. That is done through Shepherd on the
+[OCU](kairos-p4s4-ocu.md), which is why the OCU is required at vehicle setup even though
+it is outside the control path.
 
-> TODO(verify): establish how steering is calibrated without Shepherd, and whether the
-> calibration persists in the P4S4 across power cycles. This is the open question that
-> could make the OCU necessary at setup despite being outside the control path. Same TODO
-> as on [kairos-p4s4.md](kairos-p4s4.md).
+The calibration persists across power cycles, so it is an installation-time step rather
+than a per-session one. It needs redoing after anything that disturbs the steering
+actuator.
 
 > TODO(verify): record whether the throttle, brake, and transmission actuators need travel
 > limits set, and where those live. A transmission actuator with mis-set limits either

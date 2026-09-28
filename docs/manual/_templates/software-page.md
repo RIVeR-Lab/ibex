@@ -89,6 +89,34 @@ for the actual sequence rather than restating it.
 | --- | --- | --- | --- |
 | | | | |
 
+## Services and actions
+
+<!--
+Write "None" if there are none.
+
+A node that appears in `ros2 node list` but publishes nothing in `ros2 topic list` is not
+necessarily broken — it may expose a service instead. Check `ros2 service list` before
+concluding a node does nothing.
+-->
+
+| Service or action | Type | Node | Effect |
+| --- | --- | --- | --- |
+| | | | |
+
+## Non-ROS interfaces
+
+<!--
+Write "None" if there are none.
+
+Anything this package sends or receives outside ROS 2: raw sockets, serial, SPI, shared
+memory, files. Record the address, port, direction, rate, and payload format.
+
+This matters disproportionately. A ROS-native interface is discoverable with `ros2 topic
+list`; a UDP socket is invisible to every introspection tool and will not appear in any
+graph. If this package talks to hardware out-of-band, this is the only place that fact
+gets written down.
+-->
+
 ## Parameters
 
 <!--

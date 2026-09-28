@@ -13,7 +13,7 @@ last-verified: TODO(verify)
 >
 > The verification procedure is at the bottom of this page.
 
-IBEX has fourteen stop and power controls. They are not equivalent, most are not emergency
+IBEX has fifteen stop and power controls. They are not equivalent, most are not emergency
 stops, and cutting one does not imply the others are cut. This page exists so that nobody
 has to guess.
 
@@ -137,7 +137,8 @@ hesitate over.
 | # | Control | Type | Cuts | Does not cut |
 | --- | --- | --- | --- | --- |
 | 13 | Deadman | Gamepad right bumper, held-to-enable | Commanded motion. **Actuators return to neutral when it is released** | Actuator power |
-| 14 | Insta360 power button | Camera body, side | That camera only | Everything else |
+| 14 | `set_estop_state` service | ROS 2 service call to `estop_beacon` | Broadcasts `ESTOP` to the P4S4 over UDP. **Unverified end to end** — see below | Actuator power |
+| 15 | Insta360 power button | Camera body, side | That camera only | Everything else |
 
 **The deadman is a required enable, not merely a stop.** The actuators do not move on
 their own — an armed P4S4 with a controller running and nobody holding the deadman sits
@@ -250,18 +251,35 @@ Mechanism and current status:
 > TODO(verify): whether this is still current behaviour or has been addressed. The source
 > note does not say, and the difference matters enormously.
 
-### The software e-stop state is hardcoded
+### The software e-stop exists but defaults to RUN
 
-`estop_beacon.py` in `shared_link_bridge` publishes the emergency stop state and is
-hardcoded to `EStopState.RUN` at startup.
+`estop_beacon.py` in `shared_link_bridge` broadcasts a stop state to the P4S4 over UDP at
+1 Hz, and is settable at runtime through the ROS 2 service `set_estop_state` with values
+`ESTOP`, `PAUSE`, or `RUN`. It is a real stop path, not a placeholder.
 
-**Consequence:** that channel reports "running" regardless of actual state. Nothing in
-software can currently assert a stop through it.
+Three things are wrong with it:
 
-Details: [shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md).
+- **It initializes to `RUN`.** The source carries the author's own comment, "CHANGE TO
+  ESTOP AFTER TESTING." The fail-safe default was inverted for testing and never restored.
+- **It broadcasts to `255.255.255.255`** rather than the vehicle subnet, so which
+  interface it leaves on depends on the routing table. Volta has three interfaces.
+- **Nothing acknowledges it.** There is no way to tell from Volta whether the P4S4 ever
+  receives the beacon.
 
-> TODO(verify): whether anything subscribes to it. If nothing does, the practical risk is
-> lower than it looks — but the channel still cannot be used.
+**Consequence:** do not rely on the software e-stop until it has been verified end to end.
+It may work; nobody has confirmed it reaches the P4S4.
+
+Details and the specific fixes:
+[shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md).
+
+> TODO(verify): whether the P4S4 stops on loss of the beacon. If it does, the beacon is
+> load-bearing and killing the node should stop the vehicle — a useful property, worth
+> testing deliberately on chocks. If it does not, the beacon is advisory.
+
+The hardware interlocks are unaffected. The
+[VIM](../04-subsystems/motion/hardware/vehicle-integration-module.md) is not addressable
+from ROS 2, so no software fault can arm it or prevent it disarming. That is why the
+vehicle is safe to operate while this is open.
 
 ### The key does not disarm the actuators
 

@@ -139,6 +139,10 @@ Stop the sequence. Do not continue past a failed step and do not work around it.
   unlocked.
 - Actuators unresponsive with the Kairos box lit: check the vehicle integration module —
   its e-stop released, set to run rather than pause, and both side switches in position.
+  Then check that the P4S4's ethernet cable is plugged into the **router** and not the
+  OCU. The same cable serves both, and one left in the OCU after steering calibration
+  leaves Volta unable to reach the P4S4 — see
+  [kairos-p4s4-ocu.md](../04-subsystems/motion/hardware/kairos-p4s4-ocu.md).
 - One sensor missing while its box is lit: that is a device or cabling problem rather than a
   power problem. Go to that component's hardware page under
   [04-subsystems/](../04-subsystems/).

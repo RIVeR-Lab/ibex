@@ -135,6 +135,11 @@ router connects to Volta through a USB hub over USB-C.
 
 `shared_link_bridge` speaks SharedLink over UDP across this path.
 
+**That same cable is moved to the OCU when Shepherd is needed.** Unplugged at the router
+end, plugged into the OCU, which gives the OCU a point-to-point link to the P4S4 and
+leaves Volta unable to reach it. Reconnect it to the router afterwards — see
+[kairos-p4s4-ocu.md](kairos-p4s4-ocu.md).
+
 ### Addressing
 
 The P4S4 is at `192.168.200.220` on the router network. Full address map:
@@ -157,14 +162,17 @@ authority; this page should record only what is specific to IBEX.
 
 ### Calibration
 
-Steering calibration exists in the vendor workflow — Shepherd exposes a calibrate,
-bump-left, bump-right, and force-zero set of controls against a centred steering wheel and
-straight wheels.
+Steering requires calibration, and it is done through Shepherd on the
+[OCU](kairos-p4s4-ocu.md) — with the wheels straight and the steering wheel centred,
+Shepherd's teleoperation tab provides Calibrate Steering, plus Bump Left, Bump Right, and
+Force Zero Position for adjustment during operation.
 
-> TODO(verify): establish how steering is calibrated without Shepherd. If
-> `shared_link_bridge` does not expose an equivalent, then either calibration is done once
-> via the OCU and persists in the P4S4, or it is not being done at all. This determines
-> whether the OCU is needed at setup even though it is not in the control path.
+**This is why the OCU is required at vehicle setup** despite not being in the control
+path. `shared_link_bridge` has no equivalent.
+
+The calibration persists in the P4S4 across power cycles, so the OCU is needed at
+installation and after anything that disturbs the steering actuator — not every session.
+See [kairos-p4s4-ocu.md](kairos-p4s4-ocu.md).
 
 ## Known issues & fixes
 
