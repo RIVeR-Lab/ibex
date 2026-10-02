@@ -34,24 +34,43 @@ lower band and pairs with the VNIR camera. Together the two spectrometers span r
 
 ## Physical location on vehicle
 
-**Mounted inside the Compute and Sensing box**, in the rear of the vehicle.
+**The instrument is mounted inside the Compute and Sensing box**, in the rear of the
+vehicle. That is unusual and worth knowing: it is not out in the open where you would look
+for a sensor. It is protected from weather and impact, and reaching it means opening the
+box.
 
-That is unusual and worth knowing: the instrument is not out in the open where you would
-look for a sensor. It is protected from weather and impact, and reaching it means opening
-the box.
+**Light reaches it by fibre from the roof.** The fibre runs from the box up to the top of
+the vehicle, where its end and the reference puck are mounted together, next to the
+cameras.
 
-Light reaches it through a fibre optic cable from wherever the measurement point is.
+That co-location is deliberate and is what makes the measurement valid: the puck sits in
+the same light and the same shade as the scene the cameras are imaging. An illumination
+reference measured somewhere differently lit would correct the imagery toward the wrong
+answer.
 
-> TODO(verify): **where does the fibre terminate, and what does it look at?** This is the
-> most important missing fact on the page. For the ambient-light measurement to mean
-> anything, the fibre end has to be looking at either the sky or a reference panel of known
-> reflectance, in a known orientation. Record the mounting point, what it views, and
-> whether anything shades or occludes it.
+| Piece | Location |
+| --- | --- |
+| Spectrometer body and DISB-400 board | Inside the Compute and Sensing box, rear of vehicle |
+| Fibre optic cable | This unit's own, routed from the box to the roof |
+| Spectralon reference puck | Roof, alongside the cameras. **Shared with the VIS-NIR unit** |
 
-> TODO(verify): record the fibre routing from that point into the Compute and Sensing box,
-> and its bend radius constraints. Optical fibre has a minimum bend radius below which it
-> loses signal or breaks, and a fibre run into a sealed box is the kind of thing that gets
-> pinched when the lid closes.
+Each spectrometer has its own fibre; both view the same panel. That means the two
+instruments share a reference surface, so the 150 nm where their bands overlap is a real
+consistency check between them — and it also makes the puck a single point of failure for
+both channels at once.
+
+The reference is a **Spectralon** puck — a near-100% diffuse reflectance panel, which is
+the right material for this: its reflectance is high, flat across wavelength, and
+characterized.
+
+> TODO(verify): record its grade and nominal reflectance, and whether it carries a
+> calibration certificate. Also record whether it is cleaned or replaced on any schedule —
+> Spectralon degrades with dirt and UV exposure, and a soiled panel biases every
+> correction made against it.
+
+> TODO(verify): record the fibre routing and its bend radius constraints. Optical fibre has
+> a minimum bend radius below which it loses signal or breaks, and a run from a sealed box
+> to the roof passes through at least one point where it can be pinched.
 
 ## Power source / rail
 
@@ -84,9 +103,40 @@ the data path.
 | Supply | 6 V, 0.133 A, 0.8 W |
 | Serial number | TODO(verify) — printed at driver startup |
 
-> TODO(verify): **which slit is fitted?** The resolution is either 9.5 nm or 12.9 nm and
-> the difference is substantial for any spectral analysis. The slit is fixed at order, so
-> this is answerable from the purchase record or from Ibsen.
+### Determining which slit is fitted
+
+The resolution is either 9.5 nm or 12.9 nm depending on slit width, and the difference
+matters for any spectral analysis. The slit is fixed at order and cannot be changed.
+
+Three ways to find out, easiest first:
+
+**1. The purchase record.** The slit width is a configuration option specified at order,
+so it is on the quote, the order confirmation, or the packing documentation. This is the
+definitive answer and costs nothing.
+
+**2. Ask Ibsen.** The driver prints the PCB serial at startup:
+
+```bash
+ros2 launch spectrometer_drivers ibsen_launch.py
+```
+
+Ibsen can look up the as-built configuration from that serial. Their contact is on the
+[vendor page](https://ibsen.com/productinfo/pebble-nir/).
+
+**3. Measure it.** Illuminate the fibre with a narrow-linewidth NIR source — a 1550 nm
+telecom laser diode is ideal, since its linewidth is negligible against either candidate
+resolution, so the measured peak width *is* the instrument response. Record a spectrum,
+fit a Gaussian to the peak, and convert its FWHM from pixels to nanometres.
+
+> Be aware this is marginal. With 128 usable pixels across 750 nm the sampling is about
+> 5.9 nm per pixel, so 9.5 nm FWHM is ~1.6 pixels and 12.9 nm is ~2.2 pixels. Both are
+> undersampled, and distinguishing them requires sub-pixel Gaussian fitting on a peak only
+> two pixels wide. Use this only to corroborate the paperwork, not in place of it.
+
+Once known, record it in the specs table above, in the FWHM column of the spectral
+coverage table in [Perception](../README.md), and in
+[reorder.md](../../../99-appendix/reorder.md) — a replacement unit has to be ordered with
+the same slit to behave identically.
 
 Two constraints set at order and not changeable afterwards:
 
@@ -146,12 +196,21 @@ in our configuration. Replacing the electronics board replaces the calibration w
 
 ### Radiometric calibration
 
-> TODO(verify): the wavelength mapping is handled; the intensity scale is not addressed
-> anywhere. For this instrument to serve as an illumination reference, its counts have to
-> relate to a physical quantity — or at least be stable and referenced against a panel of
-> known reflectance. Establish whether a radiometric calibration exists, and whether a
-> dark-current reference is taken. An uncooled InGaAs detector has significant dark
-> current that varies with temperature.
+A **dark reference is implemented in the driver** — see
+[spectrometer-drivers.md](../software/spectrometer-drivers.md). That handles detector
+offset, which matters for an uncooled InGaAs detector.
+
+> TODO(verify): record when the dark reference is taken — once at startup, periodically, or
+> on request — and how. If it is taken once at startup, it will not track the temperature
+> drift described under [Known issues](#uncooled-detector-in-a-shared-enclosure).
+
+> TODO(verify): whether an absolute radiometric calibration exists, as distinct from the
+> dark reference. For this instrument's intended use it may not need one: dividing scene
+> radiance by the reference puck's measured return cancels the instrument's response
+> provided both are measured on the same instrument. That makes the puck's known
+> reflectance the thing that matters, not an absolute scale. Confirm that is the intended
+> approach, and record it — it is the difference between needing a calibration campaign and
+> not.
 
 ### Integration time
 
@@ -172,15 +231,20 @@ This is a shared problem rather than a fault of this unit. Details and the known
 limitation behind it are on
 [spectrometer-drivers.md](../software/spectrometer-drivers.md).
 
-### Uncooled detector
+### Uncooled detector in a shared enclosure
 
-The G13913 is uncooled, so its dark current and noise vary with temperature — and it is
-mounted inside a sealed box containing the vehicle's power distribution.
+The G13913 is uncooled, so its dark current and noise vary with temperature. It sits inside
+the Compute and Sensing box alongside the vehicle's power distribution.
 
-> TODO(verify): whether temperature inside the Compute and Sensing box affects
-> measurements over a session. A box that warms up over several hours of operation will
-> change this instrument's baseline. Worth a controlled check: log spectra of a fixed
-> target at the start and end of a long run.
+The box is actively ventilated — **two 24 V fans, one on each side**, to move heat out.
+That stops heat accumulating, but fans bring the interior toward ambient rather than below
+it, so the detector still tracks outside temperature across a session and between a cool
+morning and a warm afternoon.
+
+> TODO(verify): whether that affects measurements in practice. Worth a controlled check:
+> log spectra of the reference puck at the start and end of a long run, under stable
+> lighting, and compare. If the baseline shifts, the dark reference in the driver needs to
+> be taken often enough to track it rather than once at startup.
 
 ## Datasheets
 
@@ -199,9 +263,13 @@ interchangeable.
 The SMA 905 coupling is factory-fixed at order, so a replacement unit has to be specified
 with the same optical input and the same slit width to behave identically.
 
+Consumables worth listing: replacement fibre of the correct core diameter, and the
+reference puck, which degrades with dirt and UV exposure.
+
 > TODO(verify): record Ibsen's ordering contact, the exact unit configuration as ordered
-> including slit width, and lead time. Also record a source for replacement fibre.
-> Consolidate into [reorder.md](../../../99-appendix/reorder.md).
+> including slit width, and lead time. Also record a source for replacement fibre and for
+> the reference puck. Consolidate into
+> [reorder.md](../../../99-appendix/reorder.md).
 
 ## Related pages
 

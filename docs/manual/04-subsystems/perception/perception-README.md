@@ -60,9 +60,19 @@ Four instruments measure spectra. Their combined coverage is roughly 450–1700 
 | Instrument | Spectral range | Bands | FWHM | Spatial |
 | --- | --- | --- | --- | --- |
 | Ximea VNIR HSI | TODO | TODO | TODO | Imaging |
-| IMEC SWIR HSI | TODO | TODO | TODO | Imaging |
-| Ibsen VIS-NIR | TODO | TODO | TODO | Single point |
+| IMEC SWIR HSI | 1100–1700 nm **(disputed)** | 9 or 16 | TODO | Imaging, mosaic |
+| Ibsen VIS-NIR | 500–1100 nm | 256 | 6.7 or 11.5 nm | Single point |
 | Ibsen NIR | 950–1700 nm | 128 | 9.5 or 12.9 nm | Single point |
+
+**The two spectrometers overlap by 150 nm**, from 950 to 1100 nm, and together span
+500–1700 nm. The overlap is useful: it is a region where both instruments see the same
+light, so it doubles as a consistency check on the pair.
+
+> **The SWIR camera's range is disputed** — 1100–1700 nm or 1250–1700 nm depending on
+> which variant is installed and which source is believed. If it is 1250 nm, there is a
+> gap in imaging coverage between the two cameras that only the point spectrometers span.
+> Resolving this is the first thing to do in this table. See
+> [imec-swir-hsi.md](hardware/imec-swir-hsi.md).
 
 To be filled in as each hardware page is written. The two things to watch for when it is
 populated: whether the VNIR and SWIR imagers meet cleanly or leave a gap in the middle,
