@@ -62,11 +62,24 @@ Four instruments measure spectra. Their combined coverage is roughly 450–1700 
 | Ximea VNIR HSI | TODO | TODO | TODO | Imaging |
 | IMEC SWIR HSI | TODO | TODO | TODO | Imaging |
 | Ibsen VIS-NIR | TODO | TODO | TODO | Single point |
-| Ibsen NIR | TODO | TODO | TODO | Single point |
+| Ibsen NIR | 950–1700 nm | 128 | 9.5 or 12.9 nm | Single point |
 
 To be filled in as each hardware page is written. The two things to watch for when it is
 populated: whether the VNIR and SWIR imagers meet cleanly or leave a gap in the middle,
 and whether the point spectrometers overlap the imagers usefully or duplicate them.
+
+**The spectrometers and the imagers are paired by band, and they do different jobs.** The
+imagers measure radiance reflected from the scene. The spectrometers measure the
+illumination falling on it, by viewing a reference that returns all incident light. One
+divided by the other is reflectance — a property of the material rather than of the
+lighting — which is what spectral analysis actually wants.
+
+So the NIR spectrometer pairs with the SWIR camera by wavelength, and the VIS-NIR
+spectrometer with the VNIR camera. Stitched, the two spectrometers span roughly
+500–1700 nm.
+
+> TODO(verify): whether this correction is implemented anywhere, or is currently an
+> intent. Nothing is recorded as consuming the spectral products beyond recording them.
 
 Definitions of spectral range, spectral resolution, FWHM, and spatial resolution are in
 the [glossary](../../00-onboarding/glossary.md).

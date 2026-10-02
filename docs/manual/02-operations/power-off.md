@@ -55,7 +55,8 @@ them.
    camera and both point spectrometers are fed by the Compute and Sensing box instead and
    go dark at step 6.
 
-5. Turn off the **Insta360** camera.
+5. **Turn off the Insta360 by hand, at the camera.** Same as powering it on — the button
+   is on the camera body at the top of the roof, so it needs physical access.
 
 6. Press the **power button** on the **Compute and Sensing box**.
    - The red LED extinguishes.

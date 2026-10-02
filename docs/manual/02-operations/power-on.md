@@ -83,8 +83,13 @@ in [ownership.md](../00-onboarding/ownership.md).
    box. They draw USB power from Volta, so they come up with Volta and need no action here.
    The Insta360 also has its own battery.
 
-8. Power the external sensors. The Insta360's power button is on the side of the camera
-   body.
+8. **Power the Insta360 by hand, at the camera.** It sits above the hyperspectral array at
+   the top of the roof, and its power button is on the side of the camera body — you have
+   to reach the top of the vehicle to press it. Nothing powers it remotely.
+   - **Confirm the camera enters Control with Android mode.** It decides this at boot,
+     based on whether USB is connected, and does not remember it as a setting. If it comes
+     up in any other mode the driver gets no imagery — see
+     [insta360-x4.md](../04-subsystems/perception/hardware/insta360-x4.md).
 
 9. **Arm the P4S4** — last, once everything above is up and software is ready to command
    it:
