@@ -59,20 +59,44 @@ Four instruments measure spectra. Their combined coverage is roughly 450–1700 
 
 | Instrument | Spectral range | Bands | FWHM | Spatial |
 | --- | --- | --- | --- | --- |
-| Ximea VNIR HSI | TODO | TODO | TODO | Imaging |
-| IMEC SWIR HSI | 1100–1700 nm **(disputed)** | 9 or 16 | TODO | Imaging, mosaic |
-| Ibsen VIS-NIR | 500–1100 nm | 256 | 6.7 or 11.5 nm | Single point |
-| Ibsen NIR | 950–1700 nm | 128 | 9.5 or 12.9 nm | Single point |
+| Ximea VNIR HSI | 662.7–932.9 nm | 24 | TODO — read from a cube | Imaging, 407 × 215 per band |
+| IMEC SWIR HSI | 1119.5–1650.1 nm | 9 | TODO — read from a cube | Imaging, 211 × 168 per band |
+| Ibsen VIS-NIR | 451–1101 nm | 256 | 6.7 or 11.5 nm | Single point |
+| Ibsen NIR | 901–1701 nm | 127, of 256 read | 9.5 or 12.9 nm | Single point |
 
-**The two spectrometers overlap by 150 nm**, from 950 to 1100 nm, and together span
-500–1700 nm. The overlap is useful: it is a region where both instruments see the same
-light, so it doubles as a consistency check on the pair.
+**The two spectrometers overlap by 200 nm**, from 901 to 1101 nm, and together span
+451–1701 nm. These figures come from the instruments' own calibration coefficients as
+reported at driver startup, and are slightly wider than the datasheet ranges.
 
-> **The SWIR camera's range is disputed** — 1100–1700 nm or 1250–1700 nm depending on
-> which variant is installed and which source is believed. If it is 1250 nm, there is a
-> gap in imaging coverage between the two cameras that only the point spectrometers span.
-> Resolving this is the first thing to do in this table. See
-> [imec-swir-hsi.md](hardware/imec-swir-hsi.md).
+Both instruments view the same Spectralon panel through separate fibres, so across that
+overlap they are measuring the same light.
+
+The combiner resolves it with a **hard cut at 950 nm** — VNIR below, NIR above — so the
+overlap is measured twice and half of it discarded. That makes it a free consistency check
+on the pair: compare the two raw topics across 901–1101 nm and they should agree. Nobody
+has done it, and a disagreement would point at a calibration problem in one instrument.
+
+**Imaging coverage has a 186.5 nm gap; point coverage does not.** The VNIR camera ends at
+932.9 nm and the SWIR camera begins at 1119.5 nm. The spectrometers span that gap
+continuously, but at a single point rather than across an image.
+
+All four ranges above come from the instruments themselves — the cameras' band centres as
+logged by `hyper_drive`, and the spectrometers' on-board calibration coefficients. They
+supersede the datasheet figures in the original notes, several of which were wrong.
+
+**The SWIR camera's 9 bands are very unevenly spaced**: five between 1119 and 1207 nm,
+then four spread to 1650 nm with gaps up to 189 nm. It is not a smooth spectrum and should
+not be interpolated as one.
+
+> **The VNIR camera is uncalibrated.** No dark or light reference has been collected, so
+> its output is uncorrected radiance and the reflectance pipeline cannot work for the
+> shorter half of the spectrum. The SWIR camera has a documented calibration procedure;
+> this one does not. See
+> [ximea-vnir-hsi.md](hardware/ximea-vnir-hsi.md#calibration).
+
+The two cameras' FWHM figures travel in every cube as a per-band array, so
+`ros2 topic echo /synchronous_cubes --once --no-arr` fills both cells — see
+[hyper-drive.md](software/hyper-drive.md#message-definitions).
 
 To be filled in as each hardware page is written. The two things to watch for when it is
 populated: whether the VNIR and SWIR imagers meet cleanly or leave a gap in the middle,

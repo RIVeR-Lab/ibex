@@ -101,7 +101,59 @@ the data path.
 | Optical input | SMA 905 fibre coupling |
 | Required fibre core | 400 µm or 600 µm |
 | Supply | 6 V, 0.133 A, 0.8 W |
-| Serial number | TODO(verify) — printed at driver startup |
+| Spectrometer serial | **60044** |
+| PCB serial | **reads 0** — see [Known issues](#the-pcb-serial-and-firmware-read-suspiciously-low) |
+| Firmware | **2** |
+| Detector type, as reported | **4** |
+
+### As reported by the instrument
+
+Read from the driver's startup output. Authoritative for this unit; the datasheet
+describes the product line.
+
+| | |
+| --- | --- |
+| Pixels per image | 256, read as pixels 0–255 |
+| Full calibrated range | 364.17 – 1961.79 nm |
+| **Usable range** | **901 – 1701 nm** — the driver's printed bounds |
+| Mean sampling | 6.27 nm per pixel |
+| ADC programmable gain | 32 |
+| ADC offset | 17 |
+| HW_TYPE | 0 |
+
+**Wavelength calibration coefficients**, a 4th-order polynomial in pixel index:
+
+```
+c0  +1.9617907E+03
+c1  -3.2025197E+00
+c2  -1.6333527E-02
+c3  +2.9469965E-05
+c4  -4.9083832E-08
+c5  +0.0000000E+00
+```
+
+λ(p) = c0 + c1·p + c2·p² + c3·p³ + c4·p⁴, giving 1961.79 nm at pixel 0 and 364.17 nm at
+pixel 255.
+
+> **Wavelengths run in descending order.** Pixel 0 is the longest wavelength.
+
+### Which pixels are the useful ones
+
+This resolves the "only the central 128 pixels are used" note precisely.
+
+The calibration polynomial spans 364–1962 nm across all 256 pixels, but the InGaAs
+detector only responds across roughly 900–1700 nm. Applying the driver's printed bounds of
+901–1701 nm selects **pixels 64 through 190 — 127 pixels.**
+
+So all 256 pixels are read off the detector, and about half carry usable signal. The
+"central 128" figure is correct and refers to that window.
+
+> TODO(verify): confirm whether the driver publishes all 256 points or only the usable
+> window. If it publishes 256, consumers need to know that roughly half the array is
+> outside the detector's response and carries noise rather than signal.
+
+**The real range is slightly wider than the datasheet figure** — documentation says
+950–1700 nm, the driver uses 901–1701 nm.
 
 ### Determining which slit is fitted
 
@@ -196,13 +248,29 @@ in our configuration. Replacing the electronics board replaces the calibration w
 
 ### Radiometric calibration
 
-A **dark reference is implemented in the driver** — see
-[spectrometer-drivers.md](../software/spectrometer-drivers.md). That handles detector
-offset, which matters for an uncooled InGaAs detector.
+A dark reference exists, but **not in this instrument's driver.**
+[`spectrometer_drivers`](../software/spectrometer-drivers.md) publishes raw counts with no
+dark subtraction. The reference lives in `hyper_drive`'s ambient-light node, as a
+**hardcoded 305-element array** matching the length of the combined VNIR + NIR spectrum —
+so it corrects the stitched spectrum, not this instrument individually. See
+[hyper-drive.md](../software/hyper-drive.md#the-dark-spectrometer-reference-is-hardcoded).
 
-> TODO(verify): record when the dark reference is taken — once at startup, periodically, or
-> on request — and how. If it is taken once at startup, it will not track the temperature
-> drift described under [Known issues](#uncooled-detector-in-a-shared-enclosure).
+Three consequences for this unit, which has the more temperature-sensitive detector:
+
+**It is taken once, not periodically.** A reference baked into source cannot track drift —
+and this is the instrument whose uncooled InGaAs dark current moves with temperature. See
+[Known issues](#uncooled-detector-in-a-shared-enclosure).
+
+**It is tied to 250 ms integration.** Dark counts scale with integration time, so changing
+this unit's `integration_time` invalidates the NIR half of that array.
+
+**It cannot be regenerated without editing code.** A generated file,
+`point_spectra_dark_ref.npy`, exists in `hyper_drive` alongside a script that produces it —
+and the node's `np.load` of it is commented out.
+
+> TODO(verify): switch the ambient node to load the file, then regenerate it. That makes
+> the dark reference reproducible and lets it be retaken when integration time or ambient
+> temperature changes.
 
 > TODO(verify): whether an absolute radiometric calibration exists, as distinct from the
 > dark reference. For this instrument's intended use it may not need one: dividing scene
@@ -230,6 +298,52 @@ descriptions and an abort. The launch file staggers them.
 This is a shared problem rather than a fault of this unit. Details and the known
 limitation behind it are on
 [spectrometer-drivers.md](../software/spectrometer-drivers.md).
+
+### The PCB serial and firmware read suspiciously low
+
+At startup this unit reports **PCB serial 0** and **firmware 2**, where the VIS-NIR unit
+reports PCB serial 58944 and firmware 265. The spectrometer serial reads correctly as
+60044.
+
+**Correct node-to-unit mapping is confirmed regardless.** The reported detector type is 4
+here and 0 on the VIS-NIR unit, so the two nodes are talking to different instruments and
+are not crossed — which was the risk worth ruling out, given matching keys off enumeration
+order rather than serial number.
+
+> TODO(verify): whether PCB serial 0 and firmware 2 are genuine values for a DISB-400, or
+> a failed read. If genuine, nothing is wrong. If a failed read, something on this board's
+> info page is not being retrieved correctly, and the same mechanism supplies the
+> calibration coefficients — which do read plausibly, so this is probably benign. Ask Ibsen
+> what a DISB-400 should report.
+
+### The on-board temperature reads at full scale
+
+Startup reports a temperature of **4093** on this unit and **4095** on the VIS-NIR. For a
+12-bit ADC, 4095 is the maximum possible value — all bits set.
+
+That is the signature of a saturated or disconnected channel rather than a plausible
+temperature. The two readings differ by 2 counts, so something is being sampled, but at the
+very top of the range.
+
+**Consequence:** there is no usable on-board temperature telemetry. That matters here more
+than on the VIS-NIR unit, because the uncooled InGaAs detector's dark current is
+temperature-dependent and the obvious way to track that drift would have been this sensor.
+
+The driver does read register 11 **every frame** and publishes it as `Spectra.temp`, so a
+per-message temperature channel exists. Two things stop it being useful:
+
+**The values look invalid**, sitting at or beside 12-bit full scale.
+
+**The combiner discards the field.** `/combined_spectra` — the only topic the ambient
+correction consumes — carries no `temp`, because `send_combined()` assigns only
+wavelengths and data. See
+[spectrometer-drivers.md](../software/spectrometer-drivers.md#the-combiner-drops-temp-and-integration_time).
+
+> TODO(verify): establish whether register 11 needs a conversion the driver is not
+> applying — Ibsen's DISB manual would say. If it does, a working temperature channel plus
+> carrying `temp` through the combiner would make thermal drift trackable in the data
+> rather than requiring a separate experiment. Until then it has to be characterized
+> empirically — see below.
 
 ### Uncooled detector in a shared enclosure
 

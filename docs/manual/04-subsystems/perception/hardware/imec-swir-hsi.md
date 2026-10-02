@@ -21,39 +21,46 @@ reference.
 
 Mounted at the centre of the hyperspectral array on the roof.
 
-## Spectral range is unresolved
+## Variant and spectral range — resolved
 
-**This needs settling before any spectral analysis is trusted.** Three figures are in
-circulation:
+**This is the SWIR 9: a 3 × 3 mosaic producing 9 bands.** Not the SWIR 16.
 
-| Source | Range |
+The band centres, logged by the driver and recorded verbatim in
+`hyper_drive/hyper_drive/numpy_ambient_light_calibration_scripts/write_camera_lamba.py`:
+
+```
+1119.46  1137.43  1159.31  1189.47  1207.40  1295.02  1378.54  1461.44  1650.13
+```
+
+| | |
 | --- | --- |
-| Datasheet, SWIR 9 variant | 1100–1700 nm |
-| Datasheet, SWIR 16 variant | 1250–1700 nm |
-| Working value, attributed to the calibration file | 1100–1700 nm |
+| Bands | **9** |
+| Range | **1119.5 – 1650.1 nm** |
+| Mosaic | 3 × 3 |
 
-Two questions, and the second depends on the first:
+That supersedes all three figures in the earlier notes — 1100–1700 nm, 1250–1700 nm, and
+the vendor URL for the 4 × 4 product, which was for the wrong variant.
 
-**1. Which variant is installed?** The vendor URL recorded in the source note points at
-the 4 × 4 mosaic product, which would be the 16-band SWIR 16 — and that variant's
-datasheet range starts at 1250 nm, not 1100 nm. A 3 × 3 mosaic would be the 9-band
-version.
+### The bands are very unevenly spaced
 
-**2. What is the usable range?** If the camera is a SWIR 16 but the calibration file
-provides coefficients from 1100 nm, then either the calibration extends beyond the
-datasheet specification, or the figure is being read from the wrong file.
+| From | To | Gap |
+| --- | --- | --- |
+| 1119.5 | 1207.4 | 17.9 – 30.2 nm across five bands |
+| 1207.4 | 1650.1 | 87.6 – 188.7 nm across four bands |
 
-> TODO(verify): resolve both. Check the mosaic pattern and band count the camera actually
-> reports, read the band centres out of the calibration file, and compare against the
-> datasheet in
-> [`docs/hardware/Hyperspectral 3D/`](../../../../hardware/Hyperspectral%203D/). Then
-> record the answer here and in the spectral coverage table in
-> [Perception](../README.md).
->
-> This is not academic. If the real range starts at 1250 nm, there is a **150 nm gap**
-> between this camera and whatever the VNIR camera's upper limit is, and the only
-> instrument covering it is the NIR point spectrometer — which measures one point, not an
-> image.
+Five bands sit close together at the bottom of the range, then four are spread thinly to
+1650 nm. **This is not a smooth spectrum.** Treating the SWIR cube as evenly sampled will
+mislead any interpolation or spectral-shape analysis — it is five closely spaced samples
+plus four isolated ones.
+
+> TODO(verify): whether that distribution is the sensor's native filter set or a selection
+> made in the context configuration. If it is a choice, the reasoning is worth recording.
+
+### Imaging coverage has a gap
+
+The Ximea VNIR ends at 932.9 nm and this camera begins at 1119.5 nm, leaving
+**186.5 nm unimaged**. Only the point spectrometers cover it, and only at a single point —
+see [Perception](../README.md).
 
 ## Physical location on vehicle
 
@@ -87,29 +94,35 @@ spectrometer, which draw 0.8 W each. Three devices share that rail.
 | | |
 | --- | --- |
 | Manufacturer | IMEC |
-| Product | Snapshot SWIR |
-| Variant | TODO(verify) — SWIR 9 or SWIR 16, see above |
+| Product | Snapshot SWIR 9 |
+| Mosaic | 3 × 3 |
 | Sensor resolution | 640 × 512 |
-| Spectral range | 1100–1700 nm, disputed — see above |
-| Bands | TODO(verify) — 9 or 16 depending on variant |
-| Cube rate | Up to 150 cubes/s |
+| Region of interest | 639 × 510, offset (1,1) |
+| **Per-band resolution** | **211 × 168** |
+| Spectral range | 1119.5 – 1650.1 nm |
+| Bands | 9 |
+| Bit depth | 13-bit, max value 8191 |
+| **Saturation value** | **7100** — below full scale |
+| Cube rate | Up to 150 cubes/s specified |
+| Configured | 15 Hz, 60 ms integration |
 | Supply | 6 V, 3 A, 18 W |
+| Frame grabber | `iPORT-CL-U3-PT03-CL0UP04-128xU [28B702142385]` |
 | Serial number | TODO(verify) |
+
+**The saturation threshold is 7100, not 8191.** The sensor reports up to 13-bit full
+scale, but values above 7100 are flagged unreliable in the camera's own data format. Check
+cube maxima against 7100.
+
+The frame is flipped horizontally in the driver to match the housing pattern.
 
 ### Effective spatial resolution is much lower than 640 × 512
 
-This is a snapshot *mosaic* camera: the spectral filters are tiled across the sensor, so
-each band is sampled by only a fraction of the pixels. The 640 × 512 figure is the raw
-sensor, not the resolution of any single band.
+This is a snapshot *mosaic* camera: the 3 × 3 filter pattern is tiled across the sensor, so
+each band is sampled by one ninth of the pixels. 640 × 512 is the raw sensor; **the
+published cube is 211 × 168 × 9.**
 
-| Mosaic | Bands | Approximate per-band resolution |
-| --- | --- | --- |
-| 4 × 4 | 16 | 160 × 128 |
-| 3 × 3 | 9 | 213 × 170 |
-
-> TODO(verify): confirm the mosaic pattern and record the actual per-band spatial
-> resolution. Anyone expecting 640 × 512 per band will be surprised by a factor of 16, and
-> this figure is what matters for registering the imagery against the point cloud.
+Anyone expecting 640 × 512 per band will be out by a factor of nine, and 211 × 168 is the
+figure that matters for registering this imagery against the point cloud.
 
 ### Lens
 

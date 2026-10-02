@@ -38,11 +38,14 @@ They share **150 nm, from 950 to 1100 nm**. That is a useful property rather tha
 problem — an overlap gives a region where both instruments see the same light, which is
 what lets the stitch be checked and the two channels cross-referenced.
 
-> TODO(verify): how `combine_ibsen` handles the overlap — crossfade, hard cut at some
-> wavelength, or average. It matters for anyone interpreting `/combined_spectra` near
-> 1000 nm, and the overlap is also a free consistency check: if the two instruments
-> disagree in that region, something is wrong with one of them. Record it on
-> [spectrometer-drivers.md](../software/spectrometer-drivers.md).
+**The combiner resolves the overlap with a hard cut at 950 nm** — this unit contributes
+everything below 950 nm, the NIR unit everything above. No crossfade, no averaging. See
+[spectrometer-drivers.md](../software/spectrometer-drivers.md#how-the-spectra-are-combined).
+
+So 901–950 nm is measured by both instruments and only this one is used; 950–1101 nm is
+measured by both and only the NIR is used. **The overlap is therefore available as a free
+consistency check** — compare the two raw topics across 901–1101 nm, and a disagreement
+points at a calibration or reference problem in one of them.
 
 ## Physical location on vehicle
 
@@ -95,7 +98,51 @@ everything else in the box.
 | Optical input | SMA 905 fibre coupling |
 | Required fibre core | 400 µm or 600 µm |
 | Supply | 6 V, 0.133 A, 0.8 W |
-| Serial number | TODO(verify) — printed at driver startup |
+| Spectrometer serial | **58944** |
+| PCB serial | **58944** |
+| Firmware | **265** |
+| Detector type, as reported | **0** |
+
+### As reported by the instrument
+
+Read from the driver's startup output. These are the authoritative values for this unit —
+the datasheet describes the product line.
+
+| | |
+| --- | --- |
+| Pixels per image | 256, read as pixels 0–255 |
+| Calibrated range | **451.34 – 1101.42 nm** |
+| Mean sampling | 2.55 nm per pixel |
+| ADC programmable gain | 41 |
+| ADC offset | 350 |
+| HW_TYPE | 0 |
+
+**Wavelength calibration coefficients**, a 4th-order polynomial in pixel index:
+
+```
+c0  +1.1014230E+03
+c1  -1.9369562E+00
+c2  -2.9704946E-03
+c3  +5.6701515E-06
+c4  -1.3484722E-08
+c5  +0.0000000E+00
+```
+
+λ(p) = c0 + c1·p + c2·p² + c3·p³ + c4·p⁴, which gives 1101.42 nm at pixel 0 and
+451.34 nm at pixel 255.
+
+> **Wavelengths run in descending order.** Pixel 0 is the *longest* wavelength, not the
+> shortest. Anyone indexing the spectrum array by position needs to know this — plotting
+> it naively produces a mirrored spectrum.
+
+**The real range is wider than the datasheet figure.** Documentation says 500–1100 nm; the
+instrument's own calibration spans 451–1101 nm, and the driver prints 451 and 1101 as its
+bounds. Treat 451–1101 nm as the operating range.
+
+> TODO(verify): the note records launch parameters of `min 500.0` and `max 1100.0`, which
+> do not match the 451 and 1101 the driver printed. Establish whether those parameters
+> clip the output, are ignored, or have been changed. If the output is clipped to
+> 500–1100 nm, usable pixels are being discarded at both ends.
 
 Two constraints are fixed at order: the SMA 905 coupling cannot be changed, and the fibre
 core must exceed the 250 µm slit height, which is why 400 µm or 600 µm is required.
@@ -195,10 +242,16 @@ replacing the board replaces the calibration with it.
 
 ### Radiometric calibration
 
-A dark reference is implemented in the driver. The silicon detector's dark current is low
-and far more stable with temperature than the NIR unit's InGaAs, so this instrument is less
-exposed to the thermal drift described on
-[ibsen-nir-spectrometer.md](ibsen-nir-spectrometer.md).
+A dark reference exists, but **not in this instrument's driver.**
+[`spectrometer_drivers`](../software/spectrometer-drivers.md) publishes raw counts with no
+dark subtraction. The reference is a hardcoded array in `hyper_drive`'s ambient-light node,
+covering the combined VNIR + NIR spectrum rather than either instrument alone — see
+[hyper-drive.md](../software/hyper-drive.md#the-dark-spectrometer-reference-is-hardcoded).
+
+This unit is the less exposed of the two: its silicon detector has low dark current and is
+far more stable with temperature than the NIR unit's InGaAs, so a once-taken reference
+holds up better here. Its half of that array is tied to 25 ms integration, though, so
+changing `integration_time` invalidates it.
 
 > TODO(verify): same question as on the NIR unit — whether an absolute radiometric
 > calibration exists or is needed. If the intended approach is dividing scene radiance by
