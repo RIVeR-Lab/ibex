@@ -146,6 +146,16 @@ real CPU on Volta, spent producing an image that is discarded.
 
 `imu_filter` subscribes to `/insta360/imu/mag`, and **nothing publishes it.**
 
+> **This turns out not to matter for state estimation.** `ibex_state` subscribes to
+> `/insta360/imu/data_raw`, not the filter's `/insta360/imu/data`, so it takes the
+> unfiltered samples and does its own preintegration in GTSAM. The filter sits in the
+> graph producing nothing that anything needs. See
+> [ibex-state.md](../../state-estimation/software/ibex-state.md#subscribed).
+>
+> So the question is no longer "is this broken" but "why is it running at all" — a
+> Madgwick filter whose output has no consumer is pure overhead, and it is started by
+> default.
+
 In `imu_filter_madgwick` the magnetometer subscription is only created when `use_mag` is
 true, and in that mode the filter synchronises IMU and magnetometer messages before
 publishing. With no magnetometer data arriving, it may never publish at all.

@@ -18,7 +18,7 @@ terms of interface, power, or software stack.
 | Sensor | Measures | Interface | Power | Status |
 | --- | --- | --- | --- | --- |
 | [Ouster OS1-64](hardware/ouster-os1-64.md) | 3D point cloud + IMU | Ethernet, link-local | Compute and Sensing box | In use |
-| [SICK picoScan 150](hardware/sick-picoscan-150.md) | 2D lidar | Ethernet, via router | Kairos box | Driver planned |
+| [SICK picoScan 150](hardware/sick-picoscan-150.md) | 2D lidar, swept to 3D by a motor base | Ethernet, via router | Kairos box | Driver planned |
 | [IMEC SWIR HSI](hardware/imec-swir-hsi.md) | Hyperspectral, SWIR | USB | Compute and Sensing box | In use |
 | [Ximea VNIR HSI](hardware/ximea-vnir-hsi.md) | Hyperspectral, VNIR | USB | USB from Volta | In use |
 | [Alvium RGB](hardware/alvium-rgb-camera.md) | Colour imagery | USB | USB from Volta | In use |
@@ -168,19 +168,28 @@ see [tf-frames.md](../../05-reference/tf-frames.md).
 look angle and pulls the footprint closer; nose-up flattens it and pushes it out. Relevant
 on the grades at Olin.
 
-> TODO(verify): three inputs to the numbers above are unconfirmed. The 1.71 m sensor height
-> is summed as `0.5715 + 1.250 - 0.11`, but only the `-0.11` appears in the transform we
-> have recorded. The claim that every other link in the chain has zero rotation is
-> unverified. And the 25° is the design tilt in the TF tree — real installed tilt may
-> differ, and should be checked with an inclinometer or by fitting the ground plane in a
-> static cloud.
+**The 1.71 m height is traced, not assumed.** It sums three links in the transform chain
+— `base_link` → `front_bumper` at +0.5715 m, `front_bumper` → `sensor_rack` at +1.250 m,
+and `sensor_rack` → `os_mount` at −0.11 m. Since `base_link` sits at the rear axle centre
+on the ground, that total is height above the ground datum. See
+[tf-frames.md](../../05-reference/tf-frames.md).
+
+> TODO(verify): the 25° is still the **design** tilt recorded in the transform tree, and
+> the claim that every other link in the chain has zero rotation is still unconfirmed.
+> Check the installed tilt with an inclinometer, or by fitting the ground plane in a static
+> cloud on level ground.
 
 ## Known issues spanning the subsystem
 
-**The SICK picoScan has no driver yet.** It comes up with the Kairos box at
-[power-on.md](../../02-operations/power-on.md) step 3 and is checked there, but nothing
-runs against it. A driver is planned. Until it exists, the power-on check confirms a
-sensor that nothing will use — worth knowing so nobody treats a failed check as a blocker.
+**The SICK picoScan has no driver yet, and needs more than one.** It comes up with the
+Kairos box at [power-on.md](../../02-operations/power-on.md) step 3 and is checked there,
+but nothing runs against it. Until a driver exists, a failed check is not a session
+blocker.
+
+It is also not a simple driver job: the scanner is 2D and sits on a **motor-controlled
+base** that sweeps it to produce 3D. That needs a lidar driver, motor control with
+position feedback, and a dynamic transform — the only moving sensor frame on the vehicle.
+See [sick-picoscan-150.md](hardware/sick-picoscan-150.md).
 
 **CycloneDDS breaks the Alvium.** Despite VimbaX's documentation recommending it, setting
 `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` stops the camera streaming after it initializes.

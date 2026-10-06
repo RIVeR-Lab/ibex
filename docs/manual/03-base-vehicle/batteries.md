@@ -8,7 +8,7 @@ last-verified: TODO(verify)
 
 The 12 V battery under the hood that starts the Wolverine.
 
-**This is not the system battery.** The 48 V Vatrer pack in the rear that powers the
+**This is not the system battery.** The 51.2 V VATRER LiFePO₄ pack in the rear that powers the
 research payload is a different thing with different rules — see
 [04-subsystems/power/](../04-subsystems/power/). Confusing the two is easy and the care
 requirements are not interchangeable.
@@ -26,7 +26,12 @@ Two batteries can go in the vehicle. **The Renegade is the one currently install
 The care rules below are the Renegade's and are stricter than normal lead-acid practice.
 Follow them, not habit.
 
-> TODO(verify): record the Renegade model number here and in
+The Renegade is a **U1-35 AGM, 12 V, 35 Ah**, maintained by the engine alternator in the
+conventional way. Because it is recharged continuously while the engine runs and carries no
+payload load, it does not figure in the payload endurance analysis at all — see
+[04-subsystems/power/](../04-subsystems/power/).
+
+> TODO(verify): record the full Renegade part number here and in
 > [reorder.md](../99-appendix/reorder.md), and record where the OEM battery is stored.
 
 ## Removing the battery
@@ -115,7 +120,7 @@ currently in the vehicle.
 - [maintenance.md](maintenance.md) — service intervals
 - [troubleshooting.md](troubleshooting.md) — the vehicle will not start
 - [checklists.md](../01-safety/checklists.md) — pre-run and post-run charge checks
-- [04-subsystems/power/](../04-subsystems/power/) — the 48 V system battery, which is not
+- [04-subsystems/power/](../04-subsystems/power/) — the 51.2 V system battery, which is not
   this
 - [reorder.md](../99-appendix/reorder.md) — replacement part numbers
 - [hazardous-waste.md](../01-safety/hazardous-waste.md) — disposal at end of life

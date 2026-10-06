@@ -24,7 +24,17 @@ which is most people.
 | OS | Ubuntu 22.04 |
 | ROS 2 | Humble |
 | Build tool | colcon |
+| **CMake** | **3.24 or newer** — Ubuntu 22.04 ships 3.22.1 |
 | Git | any modern version, with submodule support |
+
+**CMake must be upgraded before the build will succeed.** `kiss-icp` requires 3.24 and
+Ubuntu 22.04 ships 3.22.1, so a fresh clone fails on that submodule's `CMakeLists.txt`.
+The two versions coexist once a newer one is installed.
+
+> TODO(verify): record which CMake version is installed on Volta and how it was obtained —
+> Kitware's apt repository, pip, or a source build. "The versions can live side by side
+> now, but this might be a problem in the future" is the original note's own caveat, and
+> whichever route was taken determines how it gets updated later.
 
 Ubuntu 22.04 and Humble are not optional. The IMEC HSI Mosaic library was built for
 Ubuntu 18 and is already being coaxed into working on 22.04 via symlinks (section 5);
@@ -76,9 +86,14 @@ rosdep does not cover the vendor SDKs. Those are section 5.
 
 ```bash
 cd ~/ibex_ws
-colcon build
+colcon build --symlink-install
 source install/setup.bash
 ```
+
+**Use `--symlink-install`.** Launch files, YAML configuration, and Python nodes then
+become live-editable with no rebuild between changes. Without it, `ros2 launch` reads from
+`install/` rather than `src/`, so edits to a launch file silently have no effect until you
+rebuild — a confusing failure mode that has cost time on this project.
 
 colcon discovers every package under `packages/` and resolves build order from the
 dependency graph. Build from `~/ibex_ws`, never from inside the repository.

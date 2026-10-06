@@ -81,6 +81,19 @@ options and charging rules are in [batteries.md](batteries.md).
 | Height | 77.7 in / 6.5 ft | 1.97 m |
 | Wet weight (spec) | 1,786 lb | 810 kg |
 
+> TODO(verify): **the length is recorded two ways.** This table gives 122.0 in / 3.0988 m
+> from the specification; the transform-tree derivation measured the vehicle at
+> **118 in / 2.9972 m** — see
+> [tf-frames.md](../../05-reference/tf-frames.md). Four inches is more than measurement
+> slop, so the two figures are probably measuring different things, such as with and
+> without a bumper guard or receiver. Resolve which is which, because the measured value is
+> what the `base_link` extrinsics were derived from.
+
+Three further measurements, taken for the transform tree rather than from the
+specification, are recorded in [tf-frames.md](../../05-reference/tf-frames.md): front
+bumper to the leading edge of the rear wheel at 2.1336 m, rear wheel radius at 0.3302 m,
+and front bumper height off the ground at 0.5715 m.
+
 > TODO(verify): confirm what the 77.7 in height measures to — presumably the top of the
 > roll cage. The sensor rack sits above it, so the as-built height of IBEX is greater and
 > is the figure that matters for garage clearance and transport. Measure and record it in

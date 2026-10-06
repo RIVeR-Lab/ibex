@@ -202,8 +202,27 @@ System battery (9)
 Vehicle key (10) ─ Engine        [independent of everything above]
 ```
 
-> TODO(verify): the series relationships above the boxes are inferred from the power-on
-> order rather than traced. Confirm the main e-stop is genuinely upstream of all branches.
+**The main e-stop is confirmed upstream of all payload branches.** The power budget
+appendix traces it in series from the battery: 35 A fuse → e-stop → latching button → Bus
+Bar 1, and everything else hangs off the bus bars downstream. See
+[power/](../../04-subsystems/power/README.md).
+
+> TODO(verify): **the e-stop's current rating against actual load.** It is rated 10 A
+> thermal current, utilization category DC-13, and the pack draws **13.9 A average and
+> 23.8 A peak** — 39% and 138% over that rating respectively.
+>
+> Whether that matters depends on wiring the appendix describes two ways. It states the
+> e-stop switches "control-level current in the power-on / interrupt path rather than the
+> full payload current", which would be fine and is consistent with DC-13 being a
+> pilot-duty category. But its own tree shows Bus Bar 1 — downstream of the e-stop —
+> feeding both the thermistor pre-charge path and the SSR, which would put the full payload
+> current through it.
+>
+> **Resolve by tracing whether the SSR's input comes from Bus Bar 1 or directly from the
+> fuse.** If from Bus Bar 1, this is a derating issue rather than an immediate hazard, but
+> it needs recording here and in the SOP. A switch run continuously 39% over its thermal
+> rating is a switch that eventually fails — and this is the control everything else
+> depends on.
 
 Two things the tree implies, and they are not symmetric:
 

@@ -10,16 +10,26 @@ The 360° camera. Serves [Perception](../README.md).
 
 ## Overview
 
-A consumer 360° camera with two fisheye lenses, capturing 8K spherical video. On IBEX it
-provides situational awareness rather than measurement.
+A consumer 360° camera with two fisheye lenses, capturing 8K spherical video. Its imagery
+provides situational awareness rather than measurement — but **its IMU is a measurement
+sensor**, and that is easy to miss.
 
-Two things make it worth having:
+Three things make it worth having:
 
 **It sees everything at once.** A single 360° stream replaces several fixed cameras for
 the purpose of understanding what a run looked like.
 
 **It is the only sensor that sees behind the vehicle.** Every other camera and both lidars
 face forward or scan a forward-biased cone. Nothing else on IBEX covers the rear.
+
+**Its IMU is one of two feeding state estimation.** `ibex_state` runs a separate GTSAM
+preintegration pipeline, with its own bias chain and its own extrinsics, against
+`/insta360/imu/data_raw` alongside the Ouster's IMU. So a consumer action camera is
+contributing inertial constraints to the vehicle's pose estimate — see
+[ibex-state.md](../../state-estimation/software/ibex-state.md).
+
+That has a consequence worth stating plainly: **powering this camera off, or letting its
+battery die mid-run, removes an input from state estimation**, not just a video feed.
 
 It is mounted above the hyperspectral array, at the highest point on the roof — which
 gives it the clearest view and also makes it the most exposed component on the vehicle.

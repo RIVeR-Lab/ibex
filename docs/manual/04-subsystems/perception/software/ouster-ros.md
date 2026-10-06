@@ -149,15 +149,24 @@ publishes what.
 No `/ouster/scan`, and no range, signal, or near-infrared image topics, though the driver
 supports them upstream. The configuration file determines which topics are published.
 
-**The near-infrared data is already arriving.** The sensor's active profile is
-`RNG19_RFL8_SIG16_NIR16`, so range, reflectivity, signal, and 16-bit NIR are all on the
-wire — the driver is receiving them and discarding three of the four. Enabling the NIR,
-signal, and range image topics therefore costs no additional bandwidth.
+**They are disabled deliberately, and for a good reason.** The driver was dropping
+packets. CPU load, USB bandwidth, and network link quality were all ruled out; the cause
+was excess processing work in a single-threaded pipeline stage. **Disabling unused
+processing outputs fixed it.**
 
-> TODO(verify): enable the NIR image topic and see what it looks like. It is a passive
-> 865 nm image perfectly co-registered to the point cloud, which makes it a candidate for
-> registering hyperspectral imagery to geometry without solving an extrinsic. Caveats and
-> the reasoning are on [ouster-os1-64.md](../hardware/ouster-os1-64.md).
+So the absent topics are the fix, not an oversight.
+
+**The near-infrared data is still arriving on the wire.** The sensor's active profile is
+`RNG19_RFL8_SIG16_NIR16`, so range, reflectivity, signal, and 16-bit NIR all reach the
+driver, which discards three of the four. Enabling the NIR image topic costs no extra
+*network* bandwidth — but it costs exactly the processing that was removed to stop the
+packet drops.
+
+> TODO(verify): if the NIR image is wanted — it is a passive 865 nm image perfectly
+> co-registered to the point cloud, see
+> [ouster-os1-64.md](../hardware/ouster-os1-64.md) — enable it and watch for the packet
+> drops returning. The single-threaded stage is the constraint, so the question is whether
+> one additional output fits inside the headroom. Do not enable it speculatively.
 
 ## Services and actions
 
@@ -196,9 +205,13 @@ Set through `ibex_ouster_sensor_config.yaml` in `ibex_bringup`.
 | `viz` | — | `false` | Suppresses the driver's visualizer |
 
 **`min_scan_valid_columns_ratio` must be non-zero.** At the upstream default of 0.0 the
-driver passes through scans with no valid columns, and KISS-ICP errors on them. Any value
-above zero avoids it; 0.1 was chosen. See
-[kiss-icp.md](../../state-estimation/software/kiss-icp.md).
+driver passes through scans in which no points carry valid data. KISS-ICP's deskewing then
+computes a motion over a zero time delta, divides, and produces a NaN that crashes the
+node — traced in gdb. Any value above zero avoids it; 0.1 was chosen.
+
+**This is the root-cause fix for that crash.** Deskewing was also disabled in KISS-ICP as
+a backstop, before the driver-side cause was understood. See
+[kiss-icp.md](../../state-estimation/software/kiss-icp.md#nan-crashes-on-empty-scans).
 
 > TODO(verify): record the rest of the configuration file — sensor hostname, UDP
 > destination, lidar mode, and timestamp mode are the ones that matter. The lidar mode in
