@@ -21,7 +21,7 @@ This page gives the architecture, the figures an operator needs, and the open qu
 
 | | Vehicle battery | System battery |
 | --- | --- | --- |
-| Model | Renegade U1-35 AGM | VATRER LiFePO₄, 16S |
+| Model | Renegade U1-35 AGM | [VATRER LiFePO₄, 16S](system-battery.md) |
 | Rating | 12 V, 35 Ah | 51.2 V, 105 Ah, 5.376 kWh |
 | Powers | The unmodified Yamaha electrical system — engine control, lighting, starter, factory accessories | The entire sensing and autonomy payload |
 | Recharged by | The engine alternator, continuously | **A dedicated bench charger only** |
@@ -39,7 +39,9 @@ data collection.
 
 The cost is that **the system battery is never charged by the vehicle.** Runtime is
 strictly bounded by what is in the pack when you leave, and recharging it is a between-
-sessions bench operation. See [batteries.md](../../03-base-vehicle/batteries.md).
+sessions bench operation that requires physically disconnecting the payload — see
+[system-battery.md](system-battery.md). For the vehicle battery see
+[batteries.md](../../03-base-vehicle/batteries.md).
 
 ### The pack is labelled 48 V and is actually 51.2 V
 
@@ -284,8 +286,9 @@ rail.**
 
 ## Related
 
-- [batteries.md](../../03-base-vehicle/batteries.md) — the vehicle battery, and charging
-  the system pack
+- [system-battery.md](system-battery.md) — the VATRER pack, charging, and temperature
+  limits
+- [batteries.md](../../03-base-vehicle/batteries.md) — the vehicle battery
 - [power-on.md](../../02-operations/power-on.md) and
   [power-off.md](../../02-operations/power-off.md) — the procedures
 - [estop-chain.md](../../01-safety/estop-chain.md) — what each control actually cuts
