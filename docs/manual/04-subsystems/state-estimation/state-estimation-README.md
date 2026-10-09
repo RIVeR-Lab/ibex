@@ -65,31 +65,52 @@ degenerate. That complementarity is the reason for fusing them rather than picki
 > consumer-grade IMU gives little heading observability and lidar odometry has no motion to
 > work from.
 
-## The clock problem
+## Timestamps
 
-**This is the most significant open issue in the subsystem.** A factor graph is an
-optimization over time-stamped measurements, and IBEX currently has **three independent
-time sources** with nothing synchronising them:
+Three sources feed the graph, and **all three are stamped on Volta's system clock** — a
+better position than it first appears.
 
-| Source | Clock |
+| Source | How it is stamped |
 | --- | --- |
-| Ouster point cloud and IMU | The sensor's own oscillator — `timestamp_mode: TIME_FROM_INTERNAL_OSC` |
-| GPS | The P4S4's, arriving over UDP with no timestamp preserved |
-| Everything else | Volta's system clock |
+| Ouster cloud and IMU | Driver configured `TIME_FROM_ROS_TIME` — reception time of each scan's first packet |
+| Insta360 IMU | Driver, on receipt |
+| GPS | `shared_link_bridge`, on receipt of the UDP message |
 
-The Ouster supports `TIME_FROM_PTP_1588` and `TIME_FROM_SYNC_PULSE_IN`, and its
-`multipurpose_io_mode` is currently `OFF`, so the sync-pulse input is unused. See
-[ouster-os1-64.md](../perception/hardware/ouster-os1-64.md).
+The sensor hardware does keep its own time — the Ouster's internal setting is
+`TIME_FROM_INTERNAL_OSC` — but the driver overrides the ROS message stamps, and **the ROS
+stamps are what the graph consumes.**
 
-> TODO(verify): establish how much the clocks actually diverge, and whether it is
-> affecting the estimate. Drift between the lidar and the IMU is the dangerous case,
-> because IMU preintegration between two lidar poses assumes the interval is known — an
-> error there appears as a bias in the optimized trajectory rather than as an obvious
-> fault.
->
-> There is also a ready-made fix available: the GPS on the P4S4 could drive the Ouster's
-> sync-pulse input, which would put the lidar on GPS time. That is worth considering before
-> building anything around the current arrangement.
+### What remains
+
+**Latency, not drift.** Every stamp is a *reception* time, so each carries the transport and
+driver delay between capture and arrival. That delay differs per sensor and varies per
+message. For IMU preintegration between two lidar poses, a varying offset appears as a
+bias in the optimized trajectory rather than as an obvious fault.
+
+**Intra-scan timing is lost.** A whole LidarScan takes one stamp, so the 100 ms a 10 Hz
+rotation spans is collapsed to an instant. That is also why deskewing matters — see
+[kiss-icp.md](software/kiss-icp.md#deskewing-is-disabled).
+
+> TODO(verify): measure the per-sensor latency rather than assuming it is small. Comparing
+> `header.stamp` against arrival time on a few hundred messages would bound it.
+
+> The Ouster supports `TIME_FROM_PTP_1588` and `TIME_FROM_SYNC_PULSE_IN`, and the P4S4
+> carries a GPS — so a hardware-synchronised option exists if latency turns out to matter.
+> It is not needed for clock *alignment*, which `TIME_FROM_ROS_TIME` already provides.
+
+### kiss_icp_node is in sim-time mode — checked, impact limited
+
+`use_sim_time` is **true** on that node and **nothing publishes `/clock`**, so its own
+clock never advances. Upstream's `odometry.launch.py` defaults it to true for bag
+playback.
+
+**The lidar timestamps reaching the graph are unaffected.** `/kiss/odometry` carries a
+real wall-clock stamp, which means KISS-ICP stamps from the input cloud rather than from
+its own clock — so the Ouster's `TIME_FROM_ROS_TIME` stamp passes through intact.
+
+What remains is a latent trap inside that node rather than a correctness problem here.
+See
+[kiss-icp.md](software/kiss-icp.md#use_sim_time-is-true-with-no-clock-source).
 
 ## What is not being used
 
@@ -152,7 +173,7 @@ No hardware pages. The sensors this subsystem depends on are documented where th
 | **Connecting `(v, δ)` from `/kairos_values`** | The backbone asserts stationarity at 6 Hz until this is done. Highest priority in the subsystem |
 | **IBEX's actual wheelbase** | Configured at 1.2 m with a TODO; the transform tree implies roughly double. Scales yaw rate directly once `(v, δ)` is connected |
 | What accuracy does the P4S4's GPS deliver? | The noise model assumes 1.5–15 m as an admitted placeholder. Needs the receiver spec or a parked-scatter calibration |
-| How far apart do the three clocks drift? | Determines whether the fused estimate is trustworthy |
+| Per-sensor stamp latency | All three are reception times; the spread between them biases preintegration |
 | Does anything publish the `insta_imu` frame? | `ibex_state` blocks at startup forever without it |
 | Is anything consuming `graph_pose`? | Determines whether this subsystem currently has a downstream user |
 | Is the Ouster's installed tilt the design tilt? | Every extrinsic in the chain depends on it — see [Perception](../perception/README.md) |

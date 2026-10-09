@@ -89,6 +89,7 @@ sudo chmod 777 /dev/bus/usb/XXX/XXX
 
 ros2 launch spectrometer_drivers ibsen_launch.py
 ```
+*Looking for Future Technology*
 
 ### Record ROS2 Bag with all topics and compressed data format
 ```bash

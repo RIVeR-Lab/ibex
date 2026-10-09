@@ -204,6 +204,29 @@ Set through `ibex_ouster_sensor_config.yaml` in `ibex_bringup`.
 | `min_scan_valid_columns_ratio` | `0.0` | `0.1` | Minimum ratio of valid columns required before a LidarScan is processed |
 | `viz` | — | `false` | Suppresses the driver's visualizer |
 
+**`timestamp_mode: TIME_FROM_ROS_TIME`.** ROS messages are stamped with the reception time
+of each scan's first packet, on Volta's clock — **not** with the sensor's internal
+oscillator, whose own setting remains `TIME_FROM_INTERNAL_OSC`. The ROS stamps are what
+consumers see, so lidar data shares a clock with everything else on the vehicle. See
+[the state estimation README](../../state-estimation/README.md#timestamps).
+
+**`sensor_hostname: '169.254.105.158'`**, a hardcoded link-local literal. `udp_dest` is
+empty, so the driver determines the destination itself. `lidar_port` and `imu_port` are
+both `0`, meaning **auto-assigned** — the observed 58293 and 59631 will change between
+runs.
+
+**`use_system_default_qos: false`**, which is what makes `/ouster/points` and
+`/ouster/imu` Best Effort. The config's own comment notes that bag recording wants the
+opposite — see [bag-schema.md](../../../05-reference/bag-schema.md).
+
+**`proc_mask: IMU|PCL|TLM`**, the trimmed output set. `IMG`, `SCAN`, and `RAW` are
+disabled, which is the packet-drop fix described above.
+
+**`lidar_mode: ''`** leaves the sensor at its current mode — observed as 1024x10, so 10 Hz.
+
+**`min_range: 0.0` and `max_range: 1000.0`** with no `mask_path`, so the driver filters
+nothing. KISS-ICP crops to 100 m downstream.
+
 **`min_scan_valid_columns_ratio` must be non-zero.** At the upstream default of 0.0 the
 driver passes through scans in which no points carry valid data. KISS-ICP's deskewing then
 computes a motion over a zero time delta, divides, and produces a NaN that crashes the

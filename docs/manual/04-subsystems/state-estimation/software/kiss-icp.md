@@ -132,11 +132,41 @@ before assuming:
 ros2 param list /kiss_icp_node
 ```
 
-| Purpose | Parameter, in the installed version | Value |
+Launch arguments, from `ibex_bringup/config/kiss_icp_config.yaml`:
+
+| Parameter | Value |
+| --- | --- |
+| `topic` | `/ouster/points` |
+| `base_frame` | `base_link` |
+| `lidar_odom_frame` | `odom` |
+| `visualize` | `false` |
+
+Pipeline parameters, from `ibex_bringup/config/kiss_icp_processing_config.yaml`:
+
+| Group | Parameter | Value |
 | --- | --- | --- |
-| Parent (world) frame of the odometry TF | `lidar_odom_frame` | `odom` |
-| Child (vehicle) frame | `base_frame` | `base_link` |
-| Broadcast the TF, not just the topic | `publish_odom_tf` | `True` |
+| `data` | `deskew` | **`false`** — see [Known issues](#deskewing-is-disabled) |
+| `data` | `max_range` | 100.0 m |
+| `data` | `min_range` | **0.0 m** — no self-return filtering |
+| `mapping` | `voxel_size` | 1.0 m |
+| `mapping` | `max_points_per_voxel` | 20 |
+| `adaptive_threshold` | `initial_threshold` | 2.0 |
+| `adaptive_threshold` | `min_motion_th` | 0.1 |
+| `registration` | `max_num_iterations` | 500 |
+| `registration` | `convergence_criterion` | 0.0001 |
+| `registration` | `max_num_threads` | 0 — all available |
+
+**`max_range` is 100 m here against the Ouster driver's 1000 m**, so the driver passes
+everything through and KISS-ICP does the cropping.
+
+**`min_range: 0.0` means nothing excludes returns from the vehicle's own structure**, and
+the driver sets no `mask_path` either. The geometry suggests the rack sits outside the
+beam fan — the whole field of view is below horizontal and the hood falls below the bottom
+beam — but that is inference.
+
+> TODO(verify): look at a cloud within 2 m of the sensor and confirm no self-returns. In
+> scan-to-map ICP a stationary self-return is a strong anchor pulling the estimate toward
+> "not moving", so this is worth ten seconds in RViz.
 
 > **There is no `odom_frame` parameter in this version.** It is `lidar_odom_frame`.
 > `ros2 param get /kiss_icp_node odom_frame` returns "Parameter not set", which reads like
@@ -269,6 +299,47 @@ staying put when driving away and back. That was the original bug — no dynamic
 edge, or the wrong fixed frame.
 
 ## Known issues & fixes
+
+### use_sim_time is true with no clock source
+
+`ros2 param get /kiss_icp_node use_sim_time` returns **True**, and **nothing publishes
+`/clock`**. The node and its internal transform listener are the only `/clock` subscribers
+on the vehicle, and there are zero publishers.
+
+**Cause:** upstream's `odometry.launch.py` defaults `use_sim_time` to true, because
+KISS-ICP is commonly run against recorded bags. That default is wrong for live sensors.
+
+**Checked, and the impact is limited.** The published odometry carries a real wall-clock
+stamp:
+
+```bash
+ros2 topic echo /kiss/odometry --field header.stamp --once
+# sec: 1791505416   -> a real time, not zero
+```
+
+So **KISS-ICP stamps from the input cloud rather than from its own clock.** The Ouster's
+`TIME_FROM_ROS_TIME` stamp passes through intact, and the lidar residual timestamps
+reaching the factor graph are correct. The graph output is not corrupted.
+
+**What is still wrong:**
+
+| | |
+| --- | --- |
+| The node's `now()` is pinned at zero | Anything added later that stamps from the clock will silently produce zeros |
+| Its tf2 buffer runs on a clock that never advances | Time-based transform lookups may behave oddly; `Time()` "latest available" lookups are unaffected |
+| It is inconsistent with every other node | No other node on the vehicle is in sim-time mode |
+
+> TODO(verify): confirm the TF broadcast is also stamped from the cloud rather than from
+> `now()`. `ros2 run tf2_ros tf2_echo odom base_link` resolving normally is sufficient
+> evidence.
+
+**Fix:** add `use_sim_time: false` under `kiss_icp_node: ros__parameters:` in
+`kiss_icp_processing_config.yaml`, which is already the node's parameter source. `/clock`
+should then disappear from `ros2 topic list` entirely.
+
+**Priority: low but worth doing.** It is a latent trap rather than an active fault — the
+kind of thing that costs an afternoon when someone later adds a timer to this node and
+cannot work out why it never fires.
 
 ### NaN crashes on empty scans
 

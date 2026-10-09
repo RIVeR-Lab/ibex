@@ -146,7 +146,8 @@ curl -s http://os-122540007570.local/api/v1/sensor/metadata | python3 -m json.to
 | `udp_dest` | `169.254.223.140` | Volta's `enp46s0`. **A literal address** — see [Known issues](#the-sensors-udp-destination-is-a-hardcoded-address) |
 | `udp_port_lidar` | `58293` | **Not** the 7502 default |
 | `udp_port_imu` | `59631` | **Not** the 7503 default |
-| `timestamp_mode` | `TIME_FROM_INTERNAL_OSC` | The sensor's own oscillator — see [Known issues](#lidar-timestamps-come-from-the-sensors-own-clock) |
+| `timestamp_mode` (sensor) | `TIME_FROM_INTERNAL_OSC` | The sensor's internal setting |
+| `timestamp_mode` (driver) | **`TIME_FROM_ROS_TIME`** | What the driver config requests — ROS messages are stamped on Volta's clock |
 | `columns_per_packet` | 16 | |
 | `operating_mode` | `NORMAL` | |
 | `phase_lock_enable` | `false` | |
@@ -303,8 +304,13 @@ depends on Volta's address staying put.
 
 ### Lidar timestamps come from the sensor's own clock
 
-`timestamp_mode` is `TIME_FROM_INTERNAL_OSC`, so lidar and IMU timestamps come from the
-sensor's internal oscillator rather than from Volta or from GPS.
+The sensor timestamps internally on its own oscillator, but **the driver is configured
+with `timestamp_mode: TIME_FROM_ROS_TIME`**, so the ROS messages it publishes are stamped
+with the reception time of each scan's first packet, on Volta's system clock.
+
+**The ROS stamps are what consumers see**, so lidar and IMU data arrive on the same clock
+as everything else. What is lost is intra-scan timing and a variable network-plus-driver
+latency between capture and stamp, rather than a free-running clock offset.
 
 **Consequence:** the sensor's clock drifts relative to everything else on the vehicle.
 That matters for the factor graph in

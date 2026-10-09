@@ -34,13 +34,12 @@ third — see [Volta is dual-homed](#volta-is-dual-homed).
 | **Kairos P4S4** | `192.168.200.220` | IBEX router | |
 | **Router admin** | `192.168.200.1` | IBEX router | Web interface |
 | **SICK picoScan 150** | TODO(verify) | IBEX router | Powered and cabled; no driver |
-| **OCU (Panasonic CF-53)** | TODO(verify) | Direct to P4S4 | See [The OCU shares a cable](#the-ocu-shares-the-p4s4s-cable) |
+| **OCU (Panasonic CF-53)** | `192.168.200.30/16` | Direct to P4S4 | **/16 mask, unlike everything else** — see below |
 
 > TODO(verify): the SICK's address. SICK scanners ship with a fixed factory address and
 > usually need configuring onto the local subnet. See
 > [sick-picoscan-150.md](../04-subsystems/perception/hardware/sick-picoscan-150.md).
 
-> TODO(verify): the OCU's address, and whether it is static or assigned by the P4S4.
 
 ## Volta's interfaces
 
@@ -74,29 +73,34 @@ this segment is auto-negotiated link-local, and the IPv4 method must be set to
 
 | | |
 | --- | --- |
-| Volta | `169.254.223.140` |
+| Volta — `enp46s0` | `169.254.223.140` |
+| **Sensor** | **`169.254.105.158`** — set as a literal in the driver config |
 | Sensor hostname | `os-122540007570.local` |
-| Lidar data port | **UDP 58293** — not the 7502 default |
-| IMU data port | **UDP 59631** — not the 7503 default |
+| Lidar data port | **Auto-assigned** — observed 58293 |
+| IMU data port | **Auto-assigned** — observed 59631 |
 | Configuration | TCP, Ouster's HTTP/TCP interface |
 
-### The destination address is hardcoded
+### The sensor's address is a hardcoded literal
 
-The sensor's `udp_dest` is set to the literal `169.254.223.140`.
+`ibex_ouster_sensor_config.yaml` sets `sensor_hostname: '169.254.105.158'`.
 
-**If Volta's link-local address ever changes, the sensor keeps transmitting to an address
-nobody is listening on and data stops with no error.** Link-local addresses are
-auto-negotiated, so this is not hypothetical.
+**Link-local addresses are auto-negotiated**, so if the sensor ever picks a different one
+the driver cannot find it. The sensor also advertises itself over mDNS as
+`os-122540007570.local`, which would survive an address change.
 
-> TODO(verify): the failure is silent — the driver reports no error, topics simply go
-> quiet. Worth either pinning Volta's link-local address or documenting the symptom
-> prominently. See
-> [ouster-ros.md](../04-subsystems/perception/software/ouster-ros.md).
+> TODO(verify): consider using the mDNS hostname instead of the literal IP. The sensor's
+> serial number is stable; its link-local address is not.
 
-### The ports are non-default
+`udp_dest` is left **empty** in the config, so the driver determines the destination
+itself rather than relying on a stored value — that part is not fragile.
 
-58293 and 59631 rather than 7502 and 7503. Anything written against Ouster's documentation
-defaults will not work here.
+### The data ports are auto-assigned and change between runs
+
+`lidar_port: 0` and `imu_port: 0` mean "first available", so 58293 and 59631 are **what
+this run happened to get**, not fixed values.
+
+**Anything written against either those numbers or Ouster's 7502/7503 defaults will
+break.** Use `ss -lunp` or the driver's startup log to find the current pair.
 
 ### MTU and fragmentation
 
@@ -207,6 +211,36 @@ documentation recommends CycloneDDS, so this is a trap worth knowing about. See
 
 ## Known issues
 
+### The OCU's address and its odd subnet mask
+
+| | |
+| --- | --- |
+| Address | `192.168.200.30` |
+| Subnet mask | **`255.255.0.0`** — a /16 |
+| Default gateway | `192.168.200.1` — the router |
+
+No collision: `.1`, `.30`, `.199`, and `.220` are all distinct.
+
+**The /16 mask is inconsistent with the rest of the vehicle**, where everything uses /24.
+It makes the OCU treat all of `192.168.0.0/16` — 65,536 addresses — as directly reachable
+on its own link, including the lab network at `192.168.0.0/24`.
+
+**It works for what it is used for.** Calibration is a direct OCU ↔ P4S4 link, both are
+inside the /16 and inside the /24, so they reach each other either way.
+
+**Two things to be aware of:**
+
+**The gateway is unreachable during calibration.** `192.168.200.1` is the router, and the
+router is out of the path when the cable is moved to the OCU. So the OCU has no route off
+the link — harmless, and arguably desirable during a safety-relevant operation.
+
+**If the OCU is ever put on the router network, it will not reach the lab network.** The
+/16 makes it ARP directly for `192.168.0.x` addresses instead of sending them to the
+gateway, so that traffic black-holes rather than routing.
+
+> TODO(verify): set the mask to `255.255.255.0` to match everything else, unless something
+> about Shepherd requires otherwise. It costs nothing and removes a trap.
+
 ### The OCU shares the P4S4's cable
 
 **The ethernet cable used to connect the OCU to the P4S4 is the same cable that connects
@@ -270,7 +304,8 @@ sudo tcpdump -i enp46s0 udp port 58293 -c 5
 | **`wlo1` during operation** — keep, restrict, or disable | ROS 2 traffic currently reaches the lab network |
 | **FastDDS profile contents** | Affects every node, lives outside the repo, undocumented |
 | **SharedLink command port** | The drive-by-wire path is undocumented at the network layer |
-| **SICK and OCU addresses** | Both devices are on the vehicle and unaddressed here |
+| **SICK address** | The device is on the vehicle and unaddressed here |
+| **OCU uses a /16 mask** | Inconsistent with the rest; black-holes lab-network traffic if ever put on the router segment |
 | **Ouster `udp_dest` hardcoding** | Silent data loss if Volta's link-local address shifts |
 
 ## Related

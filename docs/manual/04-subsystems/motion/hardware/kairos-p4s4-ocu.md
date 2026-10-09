@@ -91,6 +91,18 @@ Shepherd is vendor software and is not in this repository.
 
 ## Networking
 
+| | |
+| --- | --- |
+| OCU address | `192.168.200.30` |
+| Subnet mask | `255.255.0.0` — a /16, unlike the /24 used everywhere else |
+| Default gateway | `192.168.200.1`, the router — **unreachable while direct-connected to the P4S4** |
+| P4S4 address | `192.168.200.220` |
+
+The mask is wider than the rest of the vehicle's. It does not break the direct link, but
+it is worth narrowing to `255.255.255.0` — see
+[network.md](../../../05-reference/network.md#the-ocus-address-and-its-odd-subnet-mask).
+
+
 The OCU connects to the P4S4 by **ethernet cable — the same cable**. To connect the OCU,
 the cable running from the P4S4 to the IBEX router is unplugged at the router end and
 plugged into the OCU instead.
