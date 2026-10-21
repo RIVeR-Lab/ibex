@@ -49,12 +49,12 @@ MANUFACTURER = HSI_CAMERA.Manufacturer.EM_XIMEA  # <-- VERIFY
 #    (its SetRegionOfInterestArray call), or the reference frame geometry won't
 #    match the live cubes. Copy the exact x/y/width/height from synchronous_cubes.
 #    Left as None on purpose so the script refuses to run until you fill it in.
-XIMEA_ROI = None  # <-- REQUIRED, e.g. HSI_COMMON.RegionOfInterest(x=..., y=..., width=..., height=...)
+XIMEA_ROI = HSI_COMMON.RegionOfInterest(x=0, y=0, width=2045, height=1085)
 
 # 3) Context path. Load the EXISTING XIMEA context and save back to it. Point at
 #    your SOURCE tree (so a rebuild installs it), and BACK IT UP first. Confirm
 #    the path for your current layout -- the package dir has moved before.
-CONTEXT_PATH = '/home/river/ibex_ws/src/ibex/packages/hyper_drive/config/ximea/context'  # <-- CONFIRM
+CONTEXT_PATH = os.path.expanduser('~/ibex_ws/src/ibex/packages/hyper_drive/config/ximea/context')  # <-- CONFIRM
 
 # XIMEA runtime settings -- these MUST match how synchronous_cubes runs XIMEA,
 # because the dark reference is integration-time-specific. From the live

@@ -32,9 +32,9 @@ def generate_launch_description():
             output='screen',
             emulate_tty=True,
             parameters=[{
-                'camera_model': 'imec',
-                'frame_rate': 15, #10
-                'integration_time': 60 #70
+                'camera_model': 'ximea', #imec
+                'frame_rate': 15, #15
+                'integration_time': 10 #60
             }]
         ),
 

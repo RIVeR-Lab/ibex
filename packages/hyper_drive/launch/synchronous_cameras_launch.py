@@ -58,7 +58,7 @@ def generate_launch_description():
                     emulate_tty=True,
                     parameters=[{
                         'sleep': 0.001, # 0.001
-                        'x_frame_rate': 15,
+                        'x_frame_rate': 15, #15
                         'x_integration_time': 10,
                         'i_frame_rate': 15,
                         'i_integration_time': 60, #60

@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <optical_setup version="1">
-    <lens version="0">
-        <lens_properties version="0">
-            <manufacturer_name>Edmund Optics</manufacturer_name>
-            <spectral_range_name>VNIR</spectral_range_name>
-            <focal_length_mm>25</focal_length_mm>
-            <exit_pupil_distance_mm>31.699999999999999</exit_pupil_distance_mm>
-        </lens_properties>
-        <lens_parameters version="0">
-            <f_number>1.3999999999999999</f_number>
-        </lens_parameters>
-    </lens>
-    <sensor_rejection_filter version="0">
-        <refractive_index>1.7</refractive_index>
-    </sensor_rejection_filter>
+  <lens version="0">
+    <lens_properties version="0">
+      <manufacturer_name>Edmund Optics</manufacturer_name>
+      <spectral_range_name>VNIR</spectral_range_name>
+      <focal_length_mm>25</focal_length_mm>
+      <exit_pupil_distance_mm>31.7</exit_pupil_distance_mm>
+    </lens_properties>
+    <lens_parameters version="0">
+      <f_number>1.4</f_number>
+    </lens_parameters>
+  </lens>
+  <sensor_rejection_filter version="0">
+    <refractive_index>1.7</refractive_index>
+  </sensor_rejection_filter>
 </optical_setup>

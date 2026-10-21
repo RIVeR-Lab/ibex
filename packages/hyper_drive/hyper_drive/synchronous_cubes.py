@@ -220,6 +220,8 @@ class DataCubesGenerator(Node):
             self.get_logger().info(str(self.x_pipeline))
             self.params = HSI_MOSAIC.GetConfigurationParameters(self.x_pipeline)
             self.params.spatial_median_filter_enable = False
+            self.params.spatial_resampling_width = 318    # XIMEA output width  (default 407)
+            self.params.spatial_resampling_height = 168   # XIMEA output height (default 215)
             self.get_logger().info(f'Configuration Params : {self.params}')
             HSI_MOSAIC.SetConfigurationParameters(self.x_pipeline, self.params)
             self.get_logger().info(f'Initializing Pipeline')

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <context_description version="1">
   <meta_data version="1" kind="roi frame">
-    <data_format version="1" kind="roi_frame_data_format" byte_depth="4" data_type="float" saturation_value="1023.000000" max_value="1023.000000" no_data_value="3.402823466e+38" nr_cols="2045" nr_rows="1085">
+    <data_format version="1" kind="roi_frame_data_format" byte_depth="4" data_type="float" saturation_value="1023.000000" max_value="1023.000000" no_data_value="340282346600000016151267322115014000640.000000" nr_cols="2045" nr_rows="1085">
       <rois_sensor>
         <roi version="1" nr_cols="2045" nr_rows="1085" offset_sensor_x="0" offset_sensor_y="0"/>
       </rois_sensor>
