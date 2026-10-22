@@ -22,10 +22,10 @@ illumination reference.
 Mounted at the **far left** of the hyperspectral array on the roof; the SWIR camera is at
 the centre.
 
-> **This camera has not been calibrated.** No dark or light reference has been collected —
-> see [Calibration](#calibration). Until that is done its output is uncorrected radiance,
-> and the reflectance pipeline cannot work for this half of the spectrum. That is the most
-> consequential fact on this page.
+> **This camera is now calibrated.** `config/ximea/context/` carries a dark reference at
+> 10.049 ms plus dark and white non-uniformity references, alongside the factory
+> calibration file. This closes what was previously the most consequential gap on this
+> page.
 
 ## Spectral range — resolved
 
@@ -45,13 +45,35 @@ That settles four conflicting figures from the source notes. The closest was 660
 the 460–600 nm figure in the overview was wrong, and the vendor URL's 600–1000 nm
 describes the product family rather than this unit.
 
-### 24 bands from a 5 × 5 mosaic
+### 24 bands from a 5 × 5 mosaic — resolved
 
-A 5 × 5 mosaic has 25 filter positions and the camera produces 24 bands, so one position
-is unused, duplicated, or discarded.
+**Mosaic position 20, centred at 659.085 nm, is excluded.** It is marked `selected=false`
+in the sensor calibration file and carries zero coefficients in every virtual band, because
+it falls outside the camera's 656–974 nm bandpass filter.
 
-> TODO(verify): what the twenty-fifth position is. Likely a panchromatic or out-of-band
-> channel dropped by the demosaicing context.
+25 physical filters, 24 usable bands.
+
+### Nominal versus effective band centres
+
+Two wavelength scales exist for the same bands, and they differ by 7 to 16 nm:
+
+| | Range | What it is |
+| --- | --- | --- |
+| **Nominal** | 669.56 – 948.97 nm | From the sensor calibration XML, measured under collimated light |
+| **Effective** | **662.74 – 932.91 nm** | What the HSI Mosaic pipeline reports on IBEX |
+
+The difference is the **Fabry–Pérot angle-of-incidence correction**, computed from the
+f/1.4 declared in `optical_setup.xml`. A faster lens means a wider cone of incoming light,
+and a Fabry–Pérot filter's passband shifts to shorter wavelengths off-axis. The correction
+is about ×0.983 to ×0.990, growing toward the long-wavelength end.
+
+**The effective centres are the ones to use** — they describe the cubes the pipeline
+actually produces. The nominal values are recorded here because they appear in the
+calibration file and are easy to mistake for the real thing.
+
+> This also means **the declared f-number is an input to band-centre computation**, not
+> merely a record of the physical aperture. Changing it in `optical_setup.xml` changes the
+> reported wavelengths.
 
 ### Imaging coverage has a gap above this camera
 
@@ -101,7 +123,7 @@ hyperspectral cameras are on entirely different supplies despite sitting on the 
 | Bit depth | 10-bit, max value 1023 |
 | **Saturation value** | **1023** — full scale |
 | Configured | 15 Hz, 10 ms integration |
-| Spectral resolution (FWHM) | TODO(verify) — carried per band in the published cube |
+| Spectral resolution (FWHM) | **6.03 – 19.42 nm**, median 8.45 — widens toward the red end |
 | Supply | 5 V, 0.36 A, 1.8 W over USB |
 | System ID | `13.7.8.4` |
 | Serial number | TODO(verify) |
@@ -189,31 +211,29 @@ echo 0 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb
 
 ### Calibration
 
-**Not done**, and this is visible in the repository rather than merely undocumented:
+**Done.** `config/ximea/context/` now contains a full reference set:
 
-| | Dark reference | Non-uniformity | Optical setup |
-| --- | --- | --- | --- |
-| `hyper_drive/config/imec/context/` | ✅ | ✅ dark + white | ✅ |
-| `hyper_drive/config/ximea/context/` | ❌ **absent** | ❌ **absent** | ✅ |
+| File | Contents |
+| --- | --- |
+| `calibration_file/CMV2K-SSM5x5-665_975-13.7.8.4.xml` | Factory sensor calibration, modified 2022-09-26 |
+| `dark_references/dark_reference_10.049000.raw` | Dark reference at **10.049 ms** |
+| `non_uniformity/dark_reference.raw` | Flat-field dark |
+| `non_uniformity/white_reference.raw` | Flat-field white |
+| `optical_setup/optical_setup.xml` | Edmund Optics 25 mm, f/1.4 |
 
-The Ximea's demosaicing context contains no references, so **its cubes are not
-flat-fielded** — unlike the SWIR camera's, whose references were captured on 2026-07-08.
+That supersedes the earlier state, in which this camera had no references and its cubes
+were not flat-fielded.
 
-The consequence compounds. `ambient_light_measurement` once applied camera white and dark
-references itself, and that code was deliberately removed on the grounds that the cubes
-are already flat-fielded upstream by the vendor pipeline. **That is true for the IMEC and
-false for the Ximea** — so removing it left nothing in its place for this camera. See
-[hyper-drive.md](../software/hyper-drive.md#why-camera-c_ref-was-removed).
+> TODO(verify): **the dark reference is stamped 10.049 ms while the launch requests
+> 10 ms.** The camera quantizes — the blank-cube metadata shows the same 10.049 figure —
+> so this is the hardware's actual applied time. Confirm
+> `ContextIntegrationTimeInDark(context, 10.0)` returns true against it.
+> `light_reference.py` searches a range rather than testing one value, which suggests its
+> author already hit this.
 
-The [VIS-NIR spectrometer](ibsen-vis-nir-spectrometer.md) exists to supply this camera's
-illumination reference, and that pairing cannot produce reflectance from uncorrected
-radiance.
-
-> TODO(verify): capture dark and non-uniformity references for this camera.
-> `hyper_drive/hyper_drive/hsi_sensor_calibration/light_reference.py` does exactly this
-> for the IMEC and is the obvious starting point — it needs the device enumeration changed
-> from `EM_IMEC` to `EM_XIMEA` and the ROI changed to 2045 × 1085. The procedure is
-> otherwise the same: dark room, lens covered, then a uniform white surface.
+> TODO(verify): write a `README.md` into that directory from the template at
+> `docs/manual/_templates/context-readme.md`. The IMEC contexts have one; this does not,
+> and illumination and target are not recoverable from the XML.
 
 ## Known issues & fixes
 
@@ -226,9 +246,20 @@ radiance.
 **Fix:** set it to 0, meaning unlimited. Made persistent by a systemd unit — see
 [workstation-setup.md](../../../00-onboarding/workstation-setup.md). **Installed.**
 
-### Uncalibrated
+### Quantum efficiency is low, and worst at the long end
 
-Covered under [Calibration](#calibration). Unresolved.
+| | QE range | Median |
+| --- | --- | --- |
+| This camera | **2.45% – 17.84%** | 7.95% |
+| [IMEC SWIR](imec-swir-hsi.md), for contrast | 40.39% – 52.73% | 48.40% |
+
+**Seven of the 25 filters sit below 4% QE**, all at 854 nm and above: 854, 899, 914, 922,
+932, 941, and 949 nm. That is silicon's response falling away at the red end, and it is
+expected rather than a fault.
+
+**The practical consequence:** the longest VNIR bands are the noisiest on the vehicle, by a
+wide margin. Anything selecting spectral features should weight them accordingly, and the
+f/1.4 lens — two stops faster than the SWIR's — is partly what compensates.
 
 ## Datasheets
 

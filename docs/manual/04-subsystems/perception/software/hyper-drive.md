@@ -368,19 +368,16 @@ Both carry a sensor rejection filter with refractive index 1.7.
 
 ## Calibration
 
-### The IMEC is calibrated; the Ximea is not
+### Both cameras are calibrated
 
-This is visible in the repository itself:
+| | Calibration file | Dark reference | Non-uniformity | Optical setup |
+| --- | --- | --- | --- | --- |
+| `config/imec/context/` | ✅ | ✅ 60 ms | ✅ dark + white | ✅ f/2.8 |
+| `config/ximea/context/` | ✅ | ✅ **10.049 ms** | ✅ dark + white | ✅ f/1.4 |
 
-| | Dark reference | Non-uniformity | Optical setup |
-| --- | --- | --- | --- |
-| `config/imec/context/` | ✅ `dark_reference_60.000000.raw.xml` | ✅ dark + white | ✅ |
-| `config/ximea/context/` | ❌ absent | ❌ absent | ✅ |
-
-**The Ximea context directory contains no dark or white reference.** Its cubes are
-therefore not flat-fielded, which confirms what
-[ximea-vnir-hsi.md](../hardware/ximea-vnir-hsi.md) records — and makes it concrete rather
-than anecdotal.
+The Ximea previously had no references, which left its cubes unflat-fielded and made the
+removal of this package's camera correction a real gap for the VNIR half of the spectrum.
+**That is now closed.**
 
 The IMEC's references were captured on **2026-07-08 at 60 ms integration**, at a sensor
 temperature of 25.0 °C. A second set in `context_exp_cal/` dates from 2026-06-25.
@@ -463,10 +460,9 @@ references in the context files. Applying C_ref again would double-correct.
 
 Both formulas reference IMEC's Technical Note on the Ambient Light Sensor.
 
-> That reasoning depends on the context files actually containing references — which
-> **they do for the IMEC and do not for the Ximea.** So the Ximea's cubes are not
-> flat-fielded upstream, and removing C_ref left nothing in its place for that camera.
-> This is the concrete consequence of the missing Ximea calibration.
+> That reasoning depends on the context files containing references, which **both now
+> do.** When this code was written only the IMEC had them, so removing C_ref left nothing
+> in its place for the Ximea — that is no longer the case.
 
 ### Stored reference files
 
@@ -599,10 +595,8 @@ That is the quickest way to fill the FWHM column in
 
 The metadata is loaded by `parse_parameters()` from `config/{model}.xml`.
 
-> TODO(verify): `config/imec.xml` and `config/ximea.xml` do not appear in the repository
-> tree, only the `config/imec/` and `config/ximea/` directories. `parse_parameters()`
-> would fail without them. Confirm they exist and are committed — if they are missing, the
-> band metadata in every published cube is coming from somewhere undocumented.
+`config/imec.xml` and `config/ximea.xml` are both present, so `parse_parameters()` has its
+band metadata. An earlier file listing omitted them.
 
 #### Cubes carry no frame_id
 
@@ -653,17 +647,17 @@ and it is the single easiest way to break this pipeline silently.
 
 Two independent reasons:
 
-**It loads a file that does not exist.** `config/homographies/mask.npy` is loaded at
-startup; the directory contains only `i2a.npy`, `x2a.npy`, and `.gitkeep`.
+**~~It loads a file that does not exist.~~** Resolved — `config/homographies/mask.npy` is
+now present alongside `i2a.npy` and `x2a.npy`.
 
 **Nothing publishes its inputs.** It subscribes to `/ximea/undistort_data` and
 `/imec/undistort_data`, and the undistortion nodes that would produce them are commented
 out in `master_launch.py`.
 
-> TODO(verify): decide whether to restore this path or remove the node. Warping both cubes
-> into the Alvium frame via the stored homographies is exactly what cross-camera
-> registration needs, so it is worth reviving rather than deleting — but it does not work
-> today and nothing says so.
+> TODO(verify): with `mask.npy` now present, only the input-topic problem remains. Warping
+> both cubes into the Alvium frame via the stored homographies is exactly what cross-camera
+> registration needs — and what the traversability pipeline's registration step requires —
+> so reviving this is now a smaller job than it was.
 
 ### `ambient_light_launch_old.py` starts two cube generators
 

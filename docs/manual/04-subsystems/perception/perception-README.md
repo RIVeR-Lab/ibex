@@ -59,8 +59,8 @@ Four instruments measure spectra. Their combined coverage is roughly 450–1700 
 
 | Instrument | Spectral range | Bands | FWHM | Spatial |
 | --- | --- | --- | --- | --- |
-| Ximea VNIR HSI | 662.7–932.9 nm | 24 | TODO — read from a cube | Imaging, 407 × 215 per band |
-| IMEC SWIR HSI | 1119.5–1650.1 nm | 9 | TODO — read from a cube | Imaging, 211 × 168 per band |
+| Ximea VNIR HSI | 662.7–932.9 nm | 24 | 6.0–19.4 nm | Imaging, 407 × 215 per band |
+| IMEC SWIR HSI | 1119.5–1650.1 nm | 9 | 5.7–10.5 nm | Imaging, 211 × 168 per band |
 | Ibsen VIS-NIR | 451–1101 nm | 256 | 6.7 or 11.5 nm | Single point |
 | Ibsen NIR | 901–1701 nm | 127, of 256 read | 9.5 or 12.9 nm | Single point |
 
@@ -88,15 +88,17 @@ supersede the datasheet figures in the original notes, several of which were wro
 then four spread to 1650 nm with gaps up to 189 nm. It is not a smooth spectrum and should
 not be interpolated as one.
 
-> **The VNIR camera is uncalibrated.** No dark or light reference has been collected, so
-> its output is uncorrected radiance and the reflectance pipeline cannot work for the
-> shorter half of the spectrum. The SWIR camera has a documented calibration procedure;
-> this one does not. See
-> [ximea-vnir-hsi.md](hardware/ximea-vnir-hsi.md#calibration).
+**Both hyperspectral cameras are now calibrated.** `config/ximea/context/` gained a dark
+reference and dark/white non-uniformity references, closing a gap that previously left the
+whole VNIR half of the spectrum unflat-fielded. See
+[ximea-vnir-hsi.md](hardware/ximea-vnir-hsi.md#calibration).
 
-The two cameras' FWHM figures travel in every cube as a per-band array, so
-`ros2 topic echo /synchronous_cubes --once --no-arr` fills both cells — see
-[hyper-drive.md](software/hyper-drive.md#message-definitions).
+Both cameras' band centres, FWHM, and quantum efficiency are recorded per band in
+`hyperdrive_band_metadata.json`. They also travel in every cube as per-band arrays.
+
+**The camera wavelengths above are *effective* centres** — angle-of-incidence corrected
+from the declared f-number — not the nominal values in the sensor calibration files, which
+sit 7–16 nm higher for the VNIR and 3–7 nm higher for the SWIR.
 
 To be filled in as each hardware page is written. The two things to watch for when it is
 populated: whether the VNIR and SWIR imagers meet cleanly or leave a gap in the middle,

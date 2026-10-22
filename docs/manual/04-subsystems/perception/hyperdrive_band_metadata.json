@@ -1,0 +1,550 @@
+{
+ "source": {
+  "VNIR": {
+   "context_calibration_file": "CMV2K-SSM5x5-665_975-13_7_8_4.xml",
+   "sensor_id": "13.7.8.4",
+   "modified": "2022-09-26T12:12:31Z",
+   "bit_depth": 10,
+   "matrices_in_context_file": [
+    "hsi_reflectance",
+    "hsi_irradiance"
+   ]
+  },
+  "SWIR": {
+   "context_calibration_file": "CDL640-SSM3x3-1100_1700-12_12_10_8.xml",
+   "sensor_id": "12.12.10.8",
+   "modified": "2022-11-21T15:17:24Z",
+   "bit_depth": 13,
+   "matrices_in_context_file": [
+    "hsi_irradiance"
+   ]
+  }
+ },
+ "bands": [
+  {
+   "index": 0,
+   "camera": "VNIR",
+   "fwhm_nm": 6.033,
+   "nominal_center_nm": 669.559,
+   "ibex_ros2_logged_center_nm": 662.74,
+   "hyperdrive_dataset_effective_center_nm": 662.744,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 1,
+   "camera": "VNIR",
+   "fwhm_nm": 6.405,
+   "nominal_center_nm": 687.764,
+   "ibex_ros2_logged_center_nm": 678.44,
+   "hyperdrive_dataset_effective_center_nm": 678.444,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 2,
+   "camera": "VNIR",
+   "fwhm_nm": 6.033,
+   "nominal_center_nm": 700.979,
+   "ibex_ros2_logged_center_nm": 691.48,
+   "hyperdrive_dataset_effective_center_nm": 691.48,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 3,
+   "camera": "VNIR",
+   "fwhm_nm": 7.149,
+   "nominal_center_nm": 712.452,
+   "ibex_ros2_logged_center_nm": 702.8,
+   "hyperdrive_dataset_effective_center_nm": 702.797,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 4,
+   "camera": "VNIR",
+   "fwhm_nm": 6.777,
+   "nominal_center_nm": 728.857,
+   "ibex_ros2_logged_center_nm": 718.98,
+   "hyperdrive_dataset_effective_center_nm": 718.98,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 5,
+   "camera": "VNIR",
+   "fwhm_nm": 8.079,
+   "nominal_center_nm": 740.128,
+   "ibex_ros2_logged_center_nm": 730.1,
+   "hyperdrive_dataset_effective_center_nm": 730.099,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 6,
+   "camera": "VNIR",
+   "fwhm_nm": 6.405,
+   "nominal_center_nm": 753.323,
+   "ibex_ros2_logged_center_nm": 743.11,
+   "hyperdrive_dataset_effective_center_nm": 743.114,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 7,
+   "camera": "VNIR",
+   "fwhm_nm": 6.405,
+   "nominal_center_nm": 768.025,
+   "ibex_ros2_logged_center_nm": 757.62,
+   "hyperdrive_dataset_effective_center_nm": 757.618,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 8,
+   "camera": "VNIR",
+   "fwhm_nm": 6.405,
+   "nominal_center_nm": 781.152,
+   "ibex_ros2_logged_center_nm": 770.57,
+   "hyperdrive_dataset_effective_center_nm": 770.567,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 9,
+   "camera": "VNIR",
+   "fwhm_nm": 6.777,
+   "nominal_center_nm": 789.946,
+   "ibex_ros2_logged_center_nm": 779.24,
+   "hyperdrive_dataset_effective_center_nm": 779.241,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 10,
+   "camera": "VNIR",
+   "fwhm_nm": 7.149,
+   "nominal_center_nm": 805.49,
+   "ibex_ros2_logged_center_nm": 794.57,
+   "hyperdrive_dataset_effective_center_nm": 794.574,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 11,
+   "camera": "VNIR",
+   "fwhm_nm": 8.45,
+   "nominal_center_nm": 816.448,
+   "ibex_ros2_logged_center_nm": 805.38,
+   "hyperdrive_dataset_effective_center_nm": 805.385,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 12,
+   "camera": "VNIR",
+   "fwhm_nm": 8.45,
+   "nominal_center_nm": 828.754,
+   "ibex_ros2_logged_center_nm": 817.52,
+   "hyperdrive_dataset_effective_center_nm": 817.523,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 13,
+   "camera": "VNIR",
+   "fwhm_nm": 8.45,
+   "nominal_center_nm": 843.355,
+   "ibex_ros2_logged_center_nm": 831.93,
+   "hyperdrive_dataset_effective_center_nm": 831.926,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 14,
+   "camera": "VNIR",
+   "fwhm_nm": 9.752,
+   "nominal_center_nm": 853.992,
+   "ibex_ros2_logged_center_nm": 842.42,
+   "hyperdrive_dataset_effective_center_nm": 842.419,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 15,
+   "camera": "VNIR",
+   "fwhm_nm": 10.496,
+   "nominal_center_nm": 865.642,
+   "ibex_ros2_logged_center_nm": 853.91,
+   "hyperdrive_dataset_effective_center_nm": 853.911,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 16,
+   "camera": "VNIR",
+   "fwhm_nm": 11.24,
+   "nominal_center_nm": 879.69,
+   "ibex_ros2_logged_center_nm": 867.77,
+   "hyperdrive_dataset_effective_center_nm": 867.769,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 17,
+   "camera": "VNIR",
+   "fwhm_nm": 12.541,
+   "nominal_center_nm": 890.161,
+   "ibex_ros2_logged_center_nm": 878.1,
+   "hyperdrive_dataset_effective_center_nm": 878.099,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 18,
+   "camera": "VNIR",
+   "fwhm_nm": 12.541,
+   "nominal_center_nm": 899.352,
+   "ibex_ros2_logged_center_nm": 887.16,
+   "hyperdrive_dataset_effective_center_nm": 887.165,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 19,
+   "camera": "VNIR",
+   "fwhm_nm": 14.587,
+   "nominal_center_nm": 913.793,
+   "ibex_ros2_logged_center_nm": 901.41,
+   "hyperdrive_dataset_effective_center_nm": 901.41,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 20,
+   "camera": "VNIR",
+   "fwhm_nm": 14.587,
+   "nominal_center_nm": 921.862,
+   "ibex_ros2_logged_center_nm": 909.37,
+   "hyperdrive_dataset_effective_center_nm": 909.37,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 21,
+   "camera": "VNIR",
+   "fwhm_nm": 16.632,
+   "nominal_center_nm": 931.68,
+   "ibex_ros2_logged_center_nm": 919.06,
+   "hyperdrive_dataset_effective_center_nm": 919.055,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 22,
+   "camera": "VNIR",
+   "fwhm_nm": 18.306,
+   "nominal_center_nm": 940.92,
+   "ibex_ros2_logged_center_nm": 928.17,
+   "hyperdrive_dataset_effective_center_nm": 928.17,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 23,
+   "camera": "VNIR",
+   "fwhm_nm": 19.421,
+   "nominal_center_nm": 948.969,
+   "ibex_ros2_logged_center_nm": 932.91,
+   "hyperdrive_dataset_effective_center_nm": 932.91,
+   "dataset_to_ibex_factor": 1.0
+  },
+  {
+   "index": 24,
+   "camera": "SWIR",
+   "fwhm_nm": 8.822,
+   "nominal_center_nm": 1122.49,
+   "ibex_ros2_logged_center_nm": 1119.46,
+   "hyperdrive_dataset_effective_center_nm": 1122.49,
+   "fnumber_ratio_f0_over_f2p8": 1.01125,
+   "dataset_to_ibex_factor": 0.988875
+  },
+  {
+   "index": 25,
+   "camera": "SWIR",
+   "fwhm_nm": 7.149,
+   "nominal_center_nm": 1141.373,
+   "ibex_ros2_logged_center_nm": 1137.43,
+   "hyperdrive_dataset_effective_center_nm": 1140.51,
+   "fnumber_ratio_f0_over_f2p8": 1.00361,
+   "dataset_to_ibex_factor": 0.996403
+  },
+  {
+   "index": 26,
+   "camera": "SWIR",
+   "fwhm_nm": 6.777,
+   "nominal_center_nm": 1163.33,
+   "ibex_ros2_logged_center_nm": 1159.31,
+   "hyperdrive_dataset_effective_center_nm": 1162.451,
+   "fnumber_ratio_f0_over_f2p8": 1.001,
+   "dataset_to_ibex_factor": 0.999001
+  },
+  {
+   "index": 27,
+   "camera": "SWIR",
+   "fwhm_nm": 6.405,
+   "nominal_center_nm": 1193.593,
+   "ibex_ros2_logged_center_nm": 1189.47,
+   "hyperdrive_dataset_effective_center_nm": 1192.691,
+   "fnumber_ratio_f0_over_f2p8": 0.99934,
+   "dataset_to_ibex_factor": 1.00066
+  },
+  {
+   "index": 28,
+   "camera": "SWIR",
+   "fwhm_nm": 6.777,
+   "nominal_center_nm": 1211.588,
+   "ibex_ros2_logged_center_nm": 1207.4,
+   "hyperdrive_dataset_effective_center_nm": 1210.672,
+   "fnumber_ratio_f0_over_f2p8": 0.99886,
+   "dataset_to_ibex_factor": 1.001141
+  },
+  {
+   "index": 29,
+   "camera": "SWIR",
+   "fwhm_nm": 6.033,
+   "nominal_center_nm": 1299.509,
+   "ibex_ros2_logged_center_nm": 1295.02,
+   "hyperdrive_dataset_effective_center_nm": 1298.526,
+   "fnumber_ratio_f0_over_f2p8": 0.99779,
+   "dataset_to_ibex_factor": 1.002215
+  },
+  {
+   "index": 30,
+   "camera": "SWIR",
+   "fwhm_nm": 5.661,
+   "nominal_center_nm": 1383.325,
+   "ibex_ros2_logged_center_nm": 1378.54,
+   "hyperdrive_dataset_effective_center_nm": 1382.279,
+   "fnumber_ratio_f0_over_f2p8": 0.99698,
+   "dataset_to_ibex_factor": 1.003029
+  },
+  {
+   "index": 31,
+   "camera": "SWIR",
+   "fwhm_nm": 7.149,
+   "nominal_center_nm": 1466.508,
+   "ibex_ros2_logged_center_nm": 1461.44,
+   "hyperdrive_dataset_effective_center_nm": 1465.4,
+   "fnumber_ratio_f0_over_f2p8": 0.99688,
+   "dataset_to_ibex_factor": 1.00313
+  },
+  {
+   "index": 32,
+   "camera": "SWIR",
+   "fwhm_nm": 10.496,
+   "nominal_center_nm": 1657.108,
+   "ibex_ros2_logged_center_nm": 1650.13,
+   "hyperdrive_dataset_effective_center_nm": 1654.603,
+   "fnumber_ratio_f0_over_f2p8": 0.99578,
+   "dataset_to_ibex_factor": 1.004238
+  }
+ ],
+ "physical_filters": {
+  "VNIR": [
+   {
+    "mosaic_index": 0,
+    "center_nm": 913.793,
+    "fwhm_nm": 14.587,
+    "QE": 0.02451
+   },
+   {
+    "mosaic_index": 1,
+    "center_nm": 921.862,
+    "fwhm_nm": 14.587,
+    "QE": 0.02988
+   },
+   {
+    "mosaic_index": 2,
+    "center_nm": 931.68,
+    "fwhm_nm": 16.632,
+    "QE": 0.03397
+   },
+   {
+    "mosaic_index": 3,
+    "center_nm": 940.92,
+    "fwhm_nm": 18.306,
+    "QE": 0.03536
+   },
+   {
+    "mosaic_index": 4,
+    "center_nm": 948.969,
+    "fwhm_nm": 19.421,
+    "QE": 0.03195
+   },
+   {
+    "mosaic_index": 5,
+    "center_nm": 853.992,
+    "fwhm_nm": 9.752,
+    "QE": 0.03476
+   },
+   {
+    "mosaic_index": 6,
+    "center_nm": 865.642,
+    "fwhm_nm": 10.496,
+    "QE": 0.05001
+   },
+   {
+    "mosaic_index": 7,
+    "center_nm": 879.69,
+    "fwhm_nm": 11.24,
+    "QE": 0.06893
+   },
+   {
+    "mosaic_index": 8,
+    "center_nm": 890.161,
+    "fwhm_nm": 12.541,
+    "QE": 0.0497
+   },
+   {
+    "mosaic_index": 9,
+    "center_nm": 899.352,
+    "fwhm_nm": 12.541,
+    "QE": 0.0381
+   },
+   {
+    "mosaic_index": 10,
+    "center_nm": 789.946,
+    "fwhm_nm": 6.777,
+    "QE": 0.10182
+   },
+   {
+    "mosaic_index": 11,
+    "center_nm": 805.49,
+    "fwhm_nm": 7.149,
+    "QE": 0.07051
+   },
+   {
+    "mosaic_index": 12,
+    "center_nm": 816.448,
+    "fwhm_nm": 8.45,
+    "QE": 0.07954
+   },
+   {
+    "mosaic_index": 13,
+    "center_nm": 828.754,
+    "fwhm_nm": 8.45,
+    "QE": 0.0941
+   },
+   {
+    "mosaic_index": 14,
+    "center_nm": 843.355,
+    "fwhm_nm": 8.45,
+    "QE": 0.05429
+   },
+   {
+    "mosaic_index": 15,
+    "center_nm": 728.857,
+    "fwhm_nm": 6.777,
+    "QE": 0.11622
+   },
+   {
+    "mosaic_index": 16,
+    "center_nm": 740.128,
+    "fwhm_nm": 8.079,
+    "QE": 0.15019
+   },
+   {
+    "mosaic_index": 17,
+    "center_nm": 753.323,
+    "fwhm_nm": 6.405,
+    "QE": 0.13526
+   },
+   {
+    "mosaic_index": 18,
+    "center_nm": 768.025,
+    "fwhm_nm": 6.405,
+    "QE": 0.10017
+   },
+   {
+    "mosaic_index": 19,
+    "center_nm": 781.152,
+    "fwhm_nm": 6.405,
+    "QE": 0.16209
+   },
+   {
+    "mosaic_index": 20,
+    "center_nm": 659.085,
+    "fwhm_nm": 4.36,
+    "QE": 0.08372
+   },
+   {
+    "mosaic_index": 21,
+    "center_nm": 669.559,
+    "fwhm_nm": 6.033,
+    "QE": 0.08919
+   },
+   {
+    "mosaic_index": 22,
+    "center_nm": 687.764,
+    "fwhm_nm": 6.405,
+    "QE": 0.12269
+   },
+   {
+    "mosaic_index": 23,
+    "center_nm": 700.979,
+    "fwhm_nm": 6.033,
+    "QE": 0.12434
+   },
+   {
+    "mosaic_index": 24,
+    "center_nm": 712.452,
+    "fwhm_nm": 7.149,
+    "QE": 0.1784
+   }
+  ],
+  "SWIR": [
+   {
+    "mosaic_index": 0,
+    "center_nm": 1383.325,
+    "fwhm_nm": 5.661,
+    "QE": 0.40391
+   },
+   {
+    "mosaic_index": 1,
+    "center_nm": 1466.508,
+    "fwhm_nm": 7.149,
+    "QE": 0.51635
+   },
+   {
+    "mosaic_index": 2,
+    "center_nm": 1657.108,
+    "fwhm_nm": 10.496,
+    "QE": 0.43337
+   },
+   {
+    "mosaic_index": 3,
+    "center_nm": 1122.49,
+    "fwhm_nm": 8.822,
+    "QE": 0.47309
+   },
+   {
+    "mosaic_index": 4,
+    "center_nm": 1141.373,
+    "fwhm_nm": 7.149,
+    "QE": 0.52735
+   },
+   {
+    "mosaic_index": 5,
+    "center_nm": 1163.33,
+    "fwhm_nm": 6.777,
+    "QE": 0.50286
+   },
+   {
+    "mosaic_index": 6,
+    "center_nm": 1193.593,
+    "fwhm_nm": 6.405,
+    "QE": 0.46137
+   },
+   {
+    "mosaic_index": 7,
+    "center_nm": 1211.588,
+    "fwhm_nm": 6.777,
+    "QE": 0.51466
+   },
+   {
+    "mosaic_index": 8,
+    "center_nm": 1299.509,
+    "fwhm_nm": 6.033,
+    "QE": 0.48404
+   }
+  ]
+ },
+ "notes": {
+  "nominal_center_nm": "Virtual-band centers from the sensor calibration XML (collimated light). Identical in the ROS 1 and ROS 2 repos.",
+  "ibex_ros2_logged_center_nm": "Centers reported by the HSI Mosaic pipeline on Ibex (write_camera_lamba.py). Shifted by a constant factor (VNIR x0.9864, SWIR x0.9965, edge bands slightly more), consistent with the Fabry-Perot angle-of-incidence correction computed from optical_setup.xml (VNIR f/1.4, SWIR f/2.8).",
+  "hyperdrive_dataset": "Measured with HSI_MOSAIC.GetOutputDataFormat on the ROS 1 contexts (2026-10-20). VNIR identical to the Ibex logged values. SWIR (declared f_number=0) is shifted only slightly from nominal (about x0.9992, -0.9 to -2.5 nm; band 0 equals nominal), so dataset SWIR centers sit about 3.0-4.5 nm above Ibex SWIR centers.",
+  "excluded_vnir_filter": "Physical filter index 20 (659.09 nm) is selected=false and has zero coefficients in every virtual band: out of band (bandpass filter 656-974 nm), which is why 25 filters give 24 bands.",
+  "hyperdrive_dataset_effective_center_nm": "Effective centers of the Hyper-Drive dataset cubes, as reported by the ROS 1 pipeline contexts. Use these for the dataset.",
+  "dataset_to_ibex_factor": "Multiply dataset (ROS 1, SWIR declared f/0) cube band values by this factor to match Ibex (ROS 2, f/2.8) processing. Measured 2026-10-22 with fnumber_test.py (median of f/0 / f/2.8 over 10 live frames, with dark and flat-field applied). VNIR is 1.0 (same f/1.4 in both)."
+ },
+ "bands_order_note": "VNIR virtual bands (ascending) then SWIR virtual bands (ascending), as output by the HSI Mosaic pipeline and stacked by Register_HSI.ipynb"
+}

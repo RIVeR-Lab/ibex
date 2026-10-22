@@ -87,9 +87,9 @@ From `optical_setup/optical_setup.xml`:
 | | |
 | --- | --- |
 | Integration time | 60 ms |
-| Frame rate | 15 Hz, per `light_reference.py` |
+| Frame rate | TODO(verify) — `light_reference.py` uses 15 Hz, but that script was not used here |
 | ROI | 639 × 510 at offset (1, 1) |
-| **Frames averaged** | **1** — `light_reference.py` captures a single frame; its 30-frame averaging helper is defined and unused |
+| **Frames averaged** | TODO(verify) — captured via the Windows GUI, whose averaging setting is unrecorded |
 | Flip | `flip_horizontal: True`, `flip_vertical: False` |
 | Bit depth | 13-bit, max 8191, **saturation 7100** |
 
@@ -97,16 +97,32 @@ From `optical_setup/optical_setup.xml`:
 
 | | |
 | --- | --- |
-| Created with HSI Mosaic | **2.11.10.0** |
-| Installed HSI Mosaic on Volta | **1.12.0.0** — pinned |
-| Tool | TODO(verify) — likely `hsi_sensor_calibration/light_reference.py` |
-| Capture path | `light_reference.py` writes to `/home/river/imec_light_reference/context`, then copied here |
+| Capture machine and OS | **Windows** — the vendor GUI is Windows-only |
+| Capture route | **IMEC's Windows SDK GUI**, as the manufacturer recommends |
+| HSI Mosaic version that wrote this context | **2.11.10.0** |
+| HSI Mosaic version in the ROS stack | **1.12.0.0** — pinned |
+| Why they differ | Deliberate — see below |
+| Capture path | TODO(verify) — written on the Windows machine, then copied here |
 | System ID | `iPORT-CL-U3-PT03-CL0UP04-128xU [28B702142385]` |
 
-> **Version mismatch.** This context was written by HSI Mosaic 2.11.10.0 and is read by
-> 1.12.0.0. It evidently works, but a context produced by a newer SDK than the one
-> consuming it is the kind of mismatch that produces subtly wrong output rather than an
-> error. Regenerating under 1.12.0.0 would remove the question.
+### The version difference is deliberate and correct
+
+The manufacturer recommends capturing with the current Windows SDK, which is newer than
+what the ROS stack can run. **Running 2.11.10.0 in the stack breaks it**, which is why the
+stack is pinned to 1.12.0.0. **The context itself is compatible across that gap.**
+
+So this context carrying a newer version stamp than the runtime is the expected result of
+following the vendor's workflow — **not a defect, and not something to fix.** Do not
+regenerate a working context to make the numbers match.
+
+> This also means `light_reference.py` did **not** produce this context. That script runs
+> on Volta against the pinned 1.12.0.0 and would stamp a context accordingly. It remains a
+> valid alternative route — self-contained and in-repo — but it is not what was used here.
+
+> Worth noting: `config/ximea/context/` is stamped **1.12.0.0** and contains **no
+> references**. That is consistent with the Windows calibration workflow having been run
+> for the IMEC and not for the Ximea, which would explain the Ximea calibration gap
+> recorded in the manual.
 
 ## Validation
 
@@ -133,7 +149,9 @@ approximately 25 °C.
 reference is good are the light source and the target, and neither is recorded. This
 context cannot be reproduced.
 
-**Single-frame references.** Both dark and white are one frame each, so sensor noise is
-carried directly into the correction rather than averaged out.
+**Single-frame references.** TODO(verify) — `light_reference.py` captures one frame each,
+but this context came from the Windows GUI, whose averaging behaviour is unrecorded. Check
+whether the GUI averaged, and how many frames.
 
-**Version mismatch.** See [Provenance](#provenance).
+**Capture conditions unrecoverable.** See above — the illumination and target are the two
+things that most determine whether a white reference is good, and neither is recorded.

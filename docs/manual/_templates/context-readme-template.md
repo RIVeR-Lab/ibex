@@ -109,16 +109,42 @@ measurement.
 
 ## Provenance
 
+**Two SDK versions apply, and they are expected to differ.** Record both, and record why.
+
 | | |
 | --- | --- |
-| Created with HSI Mosaic version | From `context_description.xml` `data_source` |
-| Installed HSI Mosaic version at time of use | Pinned at 1.12.0.0 on Volta |
-| Tool or script | e.g. `hsi_sensor_calibration/light_reference.py`, or IMEC's Windows GUI |
+| Capture machine and OS | The vendor GUI is Windows-only; `light_reference.py` runs on Volta |
+| Capture route | Vendor Windows GUI, or `hsi_sensor_calibration/light_reference.py` |
+| **HSI Mosaic version that wrote this context** | From `context_description.xml` `data_source` |
+| **HSI Mosaic version in the ROS stack** | Currently pinned at 1.12.0.0 |
+| Why they differ | See below — state the reason rather than leaving it to be rediscovered |
 | Capture path | Where it was written before being copied into the repo |
 | System ID | From `context_description.xml` |
 
-> **Flag any version mismatch.** A context written by a newer SDK than the one reading it
-> is the kind of mismatch that produces subtly wrong output rather than an error.
+### A version difference is normal here, not a defect
+
+The manufacturer recommends capturing with the **current Windows SDK**, which is newer than
+the version the ROS stack can run. **The newer SDK breaks the stack**, which is why the
+stack is pinned — but **contexts produced by the newer SDK remain compatible with the
+pinned runtime.**
+
+So a context stamped with a newer version than the runtime is the *expected* result of
+following the vendor's recommended workflow. **Do not treat it as something to fix, and do
+not regenerate a good context merely to make the numbers match.**
+
+What to record instead:
+
+- Which SDK wrote it, and on what machine
+- That compatibility with the pinned runtime was confirmed, and how
+- Whether the capture route was the vendor GUI or the in-repo script
+
+> A context written *by the pinned Linux SDK* is also valid and simpler to reproduce. The
+> trade is vendor-recommended tooling against a self-contained in-repo workflow. State
+> which was chosen and why, since the choice is not obvious from the files.
+
+> TODO(verify) for whoever maintains this: if the stack's SDK pin ever moves, re-confirm
+> that existing contexts still load. Compatibility holding in one direction today does not
+> guarantee it across a future pin change.
 
 ## Validation
 
