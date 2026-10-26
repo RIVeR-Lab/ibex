@@ -24,8 +24,7 @@ from hyper_drive_interfaces.srv import AdjustParam
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import get_logging_directory
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor
 from collections import deque
 from ament_index_python.packages import get_package_share_directory
 import ros2_numpy
@@ -90,6 +89,14 @@ class DataCubesGenerator(Node):
         self.i_integration_time = self.get_parameter('i_integration_time').get_parameter_value().integer_value
 
         #frequency of publishing
+        # Threading switches, for comparing performance on the same code:
+        #   parallel_acquire: acquire XIMEA and IMEC at the same time
+        #   pipeline_publish: publish cube N while cube N+1 is acquired
+        self.declare_parameter('parallel_acquire', True)
+        self.parallel_acquire = self.get_parameter('parallel_acquire').get_parameter_value().bool_value
+        self.declare_parameter('pipeline_publish', True)
+        self.pipeline_publish = self.get_parameter('pipeline_publish').get_parameter_value().bool_value
+
         self.declare_parameter('time_wait', 0)
         self.time_wait = self.get_parameter('time_wait').get_parameter_value().integer_value * 60
 
@@ -99,15 +106,29 @@ class DataCubesGenerator(Node):
         # Create publisher to send datacubes on
         self.pub_cube = self.create_publisher(MultipleDataCubes, 'synchronous_cubes', 10)
         #subscribe to Vimba raw image
-        # The RGB subscription gets its own callback group so, with the multi-threaded
-        # executor in main(), RGB frames keep arriving while timer_callback is busy
-        # acquiring. Recent frames are buffered so each cube set can be paired with
+        # The RGB subscription lives on a small helper node with its own executor,
+        # spun on its own thread, so RGB frames are received continuously, even
+        # while timer_callback is busy acquiring. (Sharing the main node's executor
+        # let it deliver only about 7 of the camera's 12 frames per second.) It
+        # starts receiving immediately, so no backlog builds up during camera
+        # start-up. Recent frames are buffered so each cube set can be paired with
         # the RGB frame captured closest to it.
-        self.rgb_group = MutuallyExclusiveCallbackGroup()
-        self.sub_img = self.create_subscription(Image, f'/camera/image_raw', self.image_callback, 10,
-                                                callback_group=self.rgb_group)
         self.raw_img = Image()
-        self.rgb_buffer = deque(maxlen=30)
+        self.rgb_buffer = deque(maxlen=30)    # (stamp_ns, Image) pairs
+        # use_global_arguments=False: the launch file's '-r __node:=cameraProcessors'
+        # applies to every node in this process, which would give this helper the
+        # same name as the main node.
+        self.rgb_node = rclpy.create_node('synchronous_cubes_rgb', use_global_arguments=False)
+        self.sub_img = self.rgb_node.create_subscription(Image, f'/camera/image_raw', self.image_callback, 2)
+        self.rgb_executor = SingleThreadedExecutor()
+        self.rgb_executor.add_node(self.rgb_node)
+        self.rgb_thread = threading.Thread(target=self.rgb_executor.spin, daemon=True)
+        self.rgb_thread.start()
+        self.rgb_clock_warned = False
+        self.rgb_received = 0    # RGB frames received since the last loop log line
+        # Longest the publish thread waits for an RGB frame stamped after the HSI
+        # capture. Publishing has ~0.13 s of slack per loop, so this doesn't slow it.
+        self.rgb_wait_s = 0.12
         
         # Load camera parameters
         self.parse_parameters('ximea')
@@ -134,7 +155,20 @@ class DataCubesGenerator(Node):
     #callback to handle vimba raw image
     def image_callback(self, msg: Image) -> None:
         self.raw_img = msg
-        self.rgb_buffer.append(msg)
+        receive_ns = self.get_clock().now().nanoseconds
+        stamp = self.stamp_ns(msg.header.stamp)
+        # The HSI stamps use ROS time. If the RGB driver stamps frames with the
+        # camera's own clock instead, the two can't be compared, so fall back to
+        # the time the frame was received.
+        if abs(stamp - receive_ns) > 1_000_000_000:
+            if not self.rgb_clock_warned:
+                self.get_logger().warn(
+                    f'RGB header stamps are {(stamp - receive_ns) / 1e9:+.1f} s from ROS time '
+                    f'(camera clock?). Matching RGB frames by receive time instead.')
+                self.rgb_clock_warned = True
+            stamp = receive_ns
+        self.rgb_buffer.append((stamp, msg))
+        self.rgb_received += 1
 
     @staticmethod
     def stamp_ns(stamp) -> int:
@@ -148,8 +182,8 @@ class DataCubesGenerator(Node):
         frames = list(self.rgb_buffer)
         if not frames:
             return self.raw_img, float('nan')
-        best = min(frames, key=lambda m: abs(self.stamp_ns(m.header.stamp) - target_ns))
-        return best, (self.stamp_ns(best.header.stamp) - target_ns) / 1e6
+        stamp, best = min(frames, key=lambda f: abs(f[0] - target_ns))
+        return best, (stamp - target_ns) / 1e6
 
     def initialize_camera(self, model) -> None:
         # Rate at which to generate composite data cubes
@@ -254,8 +288,6 @@ class DataCubesGenerator(Node):
             self.get_logger().info(str(self.x_pipeline))
             self.params = HSI_MOSAIC.GetConfigurationParameters(self.x_pipeline)
             self.params.spatial_median_filter_enable = False
-            self.params.spatial_resampling_width = 407    # XIMEA output width  (default 407)
-            self.params.spatial_resampling_height = 215   # XIMEA output height (default 215)
             self.get_logger().info(f'Configuration Params : {self.params}')
             HSI_MOSAIC.SetConfigurationParameters(self.x_pipeline, self.params)
             self.get_logger().info(f'Initializing Pipeline')
@@ -297,10 +329,12 @@ class DataCubesGenerator(Node):
         bands. FWHM and QE stay at their nominal per-band XML values, since the
         pipeline does not report effective ones.
         '''
-        bands_nm = getattr(outputdataformat, 'bands_nm', None)
-        if bands_nm is None:
-            bands_nm = outputdataformat['bands_nm']
-        bands_nm = [float(b) for b in bands_nm]
+        # bands_nm is a raw ctypes pointer into the SDK's memory, not a Python
+        # sequence, so it has no length: iterating it reads past the end until the
+        # process segfaults. Index it explicitly up to nr_bands instead.
+        nr_bands = int(outputdataformat.nr_bands)
+        bands_ptr = outputdataformat.bands_nm
+        bands_nm = [float(bands_ptr[k]) for k in range(nr_bands)]
 
         nominal = self.x_central_wave if model == 'ximea' else self.i_central_wave
         if len(bands_nm) != len(nominal):
@@ -515,8 +549,19 @@ class DataCubesGenerator(Node):
         ros_cubes.cubes = [x_ros_cube, i_ros_cube]
         t9 = time.time()
 
-        # RGB frame captured closest to the midpoint of the two HSI captures
+        # RGB frame captured closest to the midpoint of the two HSI captures.
+        # RGB frames reach this node well after their stamp (moving a 3.8 MB frame
+        # over USB 2.0 alone takes ~80 ms), so wait briefly until a frame stamped at
+        # or after the HSI capture has arrived; otherwise only older frames are
+        # available to choose from.
         hsi_ns = (x_stamp.nanoseconds + i_stamp.nanoseconds) // 2
+        t_rgb = time.time()
+        deadline = t_rgb + (self.rgb_wait_s if self.pipeline_publish else 0.0)
+        while time.time() < deadline:
+            if self.rgb_buffer and self.rgb_buffer[-1][0] >= hsi_ns:
+                break
+            time.sleep(0.005)
+        t_rgb = time.time() - t_rgb
         raw_img, rgb_offset_ms = self.nearest_rgb(hsi_ns)
         ros_cubes.im = raw_img
         #ros_cubes.im = ros_numpy.msgify(Image, self.raw_img, encoding="8UC3")
@@ -537,7 +582,7 @@ class DataCubesGenerator(Node):
         f'ImAssign:{t10-t9:.3f} '
         f'Publish:{t11-t10:.3f} '
         f'| Sync: IMEC-XIMEA {(i_stamp.nanoseconds - x_stamp.nanoseconds) / 1e6:+.1f} ms, '
-        f'RGB-HSI {rgb_offset_ms:+.1f} ms'
+        f'RGB-HSI {rgb_offset_ms:+.1f} ms (waited {t_rgb*1000:.0f} ms)'
         )
 
     def _acquire_cube(self, device, frame, pipeline, cube, label):
@@ -578,20 +623,26 @@ class DataCubesGenerator(Node):
                 # before the lock releases -- workers never take the lock.
                 with self.lock:
                     t0 = time.time()
-                    x_future = self.acq_executor.submit(
-                        self._acquire_cube, self.x_device, self.x_frame,
-                        self.x_pipeline, self.x_cube, 'XIMEA')
-                    i_future = self.acq_executor.submit(
-                        self._acquire_cube, self.i_device, self.i_frame,
-                        self.i_pipeline, self.i_cube, 'IMEC')
+                    if self.parallel_acquire:
+                        x_future = self.acq_executor.submit(
+                            self._acquire_cube, self.x_device, self.x_frame,
+                            self.x_pipeline, self.x_cube, 'XIMEA')
+                        i_future = self.acq_executor.submit(
+                            self._acquire_cube, self.i_device, self.i_frame,
+                            self.i_pipeline, self.i_cube, 'IMEC')
 
-                    # .result() blocks until each worker finishes and re-raises
-                    # any worker exception here, so the except-block below still
-                    # catches failures and triggers restart_camera(). Both joins
-                    # happen inside the with-block, so the lock is held until
-                    # both cameras are done.
-                    _, x_py_cube, x_dt, x_stamp = x_future.result()
-                    _, i_py_cube, i_dt, i_stamp = i_future.result()
+                        # .result() blocks until each worker finishes and re-raises
+                        # any worker exception here, so the except-block below still
+                        # catches failures and triggers restart_camera(). Both joins
+                        # happen inside the with-block, so the lock is held until
+                        # both cameras are done.
+                        _, x_py_cube, x_dt, x_stamp = x_future.result()
+                        _, i_py_cube, i_dt, i_stamp = i_future.result()
+                    else:
+                        _, x_py_cube, x_dt, x_stamp = self._acquire_cube(
+                            self.x_device, self.x_frame, self.x_pipeline, self.x_cube, 'XIMEA')
+                        _, i_py_cube, i_dt, i_stamp = self._acquire_cube(
+                            self.i_device, self.i_frame, self.i_pipeline, self.i_cube, 'IMEC')
                     t_acq = time.time() - t0
 
                     # CubeAsArray can return a view of the SDK's cube buffer, which
@@ -605,13 +656,17 @@ class DataCubesGenerator(Node):
                 # Wait for the previous publish first, so at most one is in flight
                 # and messages go out in order.
                 t3 = time.time()
-                if self.pub_future is not None:
-                    try:
-                        self.pub_future.result()
-                    except Exception:
-                        self.get_logger().error('Publishing failed:\n' + traceback.format_exc())
-                t_wait = time.time() - t3
-                self.pub_future = self.pub_executor.submit(self.publish_cubes, x_py_cube, i_py_cube, x_stamp, i_stamp)
+                if self.pipeline_publish:
+                    if self.pub_future is not None:
+                        try:
+                            self.pub_future.result()
+                        except Exception:
+                            self.get_logger().error('Publishing failed:\n' + traceback.format_exc())
+                    t_wait = time.time() - t3
+                    self.pub_future = self.pub_executor.submit(self.publish_cubes, x_py_cube, i_py_cube, x_stamp, i_stamp)
+                else:
+                    self.publish_cubes(x_py_cube, i_py_cube, x_stamp, i_stamp)
+                    t_wait = time.time() - t3
 
                 # Loop period: time between the starts of consecutive acquisitions
                 if self.last_loop_start is not None:
@@ -621,8 +676,11 @@ class DataCubesGenerator(Node):
                     rate = 'Loop: first frame'
                 self.last_loop_start = t0
 
+                rgb_received, self.rgb_received = self.rgb_received, 0
+                rate += f' RGB frames received this loop:{rgb_received}'
                 self.get_logger().info(f'Cube shapes XIMEA: {x_py_cube.shape}, IMEC: {i_py_cube.shape}, VIMBA: {self.raw_img.width}x{self.raw_img.height}')
-                self.get_logger().info(f'Acquire XIMEA:{x_dt:.3f} Acquire IMEC:{i_dt:.3f} Parallel acquire:{t_acq:.3f} (serial would be ~{x_dt+i_dt:.3f}) Wait for previous publish:{t_wait:.3f} {rate}')
+                wait_label = 'Wait for previous publish' if self.pipeline_publish else 'Publish (in loop)'
+                self.get_logger().info(f'Acquire XIMEA:{x_dt:.3f} Acquire IMEC:{i_dt:.3f} Parallel acquire:{t_acq:.3f} (serial would be ~{x_dt+i_dt:.3f}) {wait_label}:{t_wait:.3f} {rate}')
 
         except Exception as e:
             self.get_logger().error(traceback.format_exc())
@@ -636,6 +694,8 @@ class DataCubesGenerator(Node):
         self.get_logger().info('Cleaning up node for the cameras')
         self.pub_executor.shutdown(wait=True)
         self.acq_executor.shutdown(wait=True)
+        self.rgb_executor.shutdown()
+        self.rgb_node.destroy_node()
         HSI_CAMERA.Pause(self.x_device)
         HSI_CAMERA.Stop(self.x_device)
         HSI_CAMERA.CloseDevice(self.x_device)
@@ -656,11 +716,9 @@ def main(args=None):
     rclpy.init(args=args)
     data_cubes_processor = DataCubesGenerator()
     try:
-        # Two threads: one for the timer/service (default callback group), one for
-        # the RGB subscription, so RGB frames are received during acquisition.
-        executor = MultiThreadedExecutor(num_threads=2)
-        executor.add_node(data_cubes_processor)
-        executor.spin()
+        # The RGB subscription runs on its own executor thread (see __init__), so
+        # the main node only needs a single-threaded executor.
+        rclpy.spin(data_cubes_processor)
     finally:
         data_cubes_processor.shutdown()
         data_cubes_processor.destroy_node()
