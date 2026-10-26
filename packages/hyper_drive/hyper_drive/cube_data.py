@@ -318,7 +318,7 @@ class Publisher(Node):
             f'cube flatten={t1-t0:.6f}s'
         )
         t_c = time.time()
-        ros_cube.width, ros_cube.height, ros_cube.lam = tuple(cube.shape)
+        ros_cube.height, ros_cube.width, ros_cube.lam = tuple(cube.shape)
         ros_cube.qe = self.QE
         ros_cube.fwhm_nm = self.fwhm
         ros_cube.central_wavelengths = self.central_wave

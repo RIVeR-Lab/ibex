@@ -24,6 +24,9 @@ from hyper_drive_interfaces.srv import AdjustParam
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import get_logging_directory
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from collections import deque
 from ament_index_python.packages import get_package_share_directory
 import ros2_numpy
 
@@ -48,15 +51,28 @@ class DataCubesGenerator(Node):
         self.get_logger().info(f'Logging camera info to {log_dir_str}')
         HSI_COMMON.InitializeLogger(log_dir_str, HSI_COMMON.LoggerVerbosity.LV_INFO)
         self.get_logger().info('Loading Context ...')
+
         # Lock for camera setting updates
         self.lock = threading.Lock()
+
         # Reusable 2-worker pool so XIMEA and IMEC acquisition can overlap.
         # Created once (not per frame) to avoid thread-spawn overhead each cycle.
         self.acq_executor = ThreadPoolExecutor(max_workers=2)
+
+        # Single worker that publishes cube N while cube N+1 is being acquired.
+        # pub_future is the publish currently in flight (at most one at a time).
+        self.pub_executor = ThreadPoolExecutor(max_workers=1)
+        self.pub_future = None
+        self.last_loop_start = None
+
+        # Undistortion maps, built on the first frame of each camera
+        self.x_undistort_maps = None
+        self.i_undistort_maps = None
+        self.remap_multichannel = True
         # Setup callback for data
         self.package_share_dir = get_package_share_directory('hyper_drive')
 
-        self.declare_parameter('sleep', 0.001) #0.001
+        self.declare_parameter('sleep', 0.001)
         self.sleep_time = self.get_parameter('sleep').get_parameter_value().double_value
 
         #ximea
@@ -83,8 +99,15 @@ class DataCubesGenerator(Node):
         # Create publisher to send datacubes on
         self.pub_cube = self.create_publisher(MultipleDataCubes, 'synchronous_cubes', 10)
         #subscribe to Vimba raw image
-        self.sub_img = self.create_subscription(Image, f'/camera/image_raw', self.image_callback, 10)
+        # The RGB subscription gets its own callback group so, with the multi-threaded
+        # executor in main(), RGB frames keep arriving while timer_callback is busy
+        # acquiring. Recent frames are buffered so each cube set can be paired with
+        # the RGB frame captured closest to it.
+        self.rgb_group = MutuallyExclusiveCallbackGroup()
+        self.sub_img = self.create_subscription(Image, f'/camera/image_raw', self.image_callback, 10,
+                                                callback_group=self.rgb_group)
         self.raw_img = Image()
+        self.rgb_buffer = deque(maxlen=30)
         
         # Load camera parameters
         self.parse_parameters('ximea')
@@ -111,6 +134,22 @@ class DataCubesGenerator(Node):
     #callback to handle vimba raw image
     def image_callback(self, msg: Image) -> None:
         self.raw_img = msg
+        self.rgb_buffer.append(msg)
+
+    @staticmethod
+    def stamp_ns(stamp) -> int:
+        return stamp.sec * 1_000_000_000 + stamp.nanosec
+
+    def nearest_rgb(self, target_ns):
+        '''
+        Return the buffered RGB frame whose header stamp is closest to target_ns,
+        and its offset from target_ns in milliseconds.
+        '''
+        frames = list(self.rgb_buffer)
+        if not frames:
+            return self.raw_img, float('nan')
+        best = min(frames, key=lambda m: abs(self.stamp_ns(m.header.stamp) - target_ns))
+        return best, (self.stamp_ns(best.header.stamp) - target_ns) / 1e6
 
     def initialize_camera(self, model) -> None:
         # Rate at which to generate composite data cubes
@@ -131,17 +170,15 @@ class DataCubesGenerator(Node):
             c_params = HSI_CAMERA.GetConfigurationParameters(self.x_device)
             self.get_logger().info(f'C PARAMS>')
             self.get_logger().info(f'{c_params}')
+
             r_params = HSI_CAMERA.GetRuntimeParameters(self.x_device)
             self.get_logger().info(f'{r_params}')
             # Set the frame rate and exposure time before the camera starts
             # These values can be adjusted later through a callback
-            
             r_params.frame_rate_hz = self.x_frame_rate
             r_params.exposure_time_ms = self.x_integration_time
-
             # Set these parameters on the device
             HSI_CAMERA.SetRuntimeParameters(self.x_device, r_params)
-
             self.get_logger().info(f'R PARAMS>')
             self.get_logger().info(f'{r_params}')
         
@@ -161,20 +198,17 @@ class DataCubesGenerator(Node):
             c_params = HSI_CAMERA.GetConfigurationParameters(self.i_device)
             self.get_logger().info(f'C PARAMS>')
             self.get_logger().info(f'{c_params}')
+            
             r_params = HSI_CAMERA.GetRuntimeParameters(self.i_device)
             self.get_logger().info(f'{r_params}')
             # Set the frame rate and exposure time before the camera starts
             # These values can be adjusted later through a callback
-
             r_params.frame_rate_hz = self.i_frame_rate
             r_params.exposure_time_ms = self.i_integration_time
-        
             r_params['flip_vertical'] = False
             r_params['flip_horizontal'] = True
-       
             # Set these parameters on the device
             HSI_CAMERA.SetRuntimeParameters(self.i_device, r_params)
-            
             self.get_logger().info(f'R PARAMS>')
             self.get_logger().info(f'{r_params}')
 
@@ -190,8 +224,9 @@ class DataCubesGenerator(Node):
         HSI_CAMERA.Pause(self.i_device)
         HSI_CAMERA.Stop(self.i_device)
         HSI_CAMERA.CloseDevice(self.i_device)
+
         # Sleep 5 seconds
-        rclpy.spin_once(self, timeout_sec=5)
+        time.sleep(5)
         # Restart the camera
         self.initialize_camera('ximea')
         self.initialize_camera('imec')
@@ -205,7 +240,6 @@ class DataCubesGenerator(Node):
         package_share_dir = get_package_share_directory('hyper_drive')
         # Build path to config file
         dn_context = os.path.join(package_share_dir,'config',model,'context')
-        #####################################################################
         version = HSI_MOSAIC.GetAPIVersion()
         self.get_logger().info(f'VERSION :: {version}')
         self.get_logger().info(str(Path(dn_context).absolute()))
@@ -220,39 +254,67 @@ class DataCubesGenerator(Node):
             self.get_logger().info(str(self.x_pipeline))
             self.params = HSI_MOSAIC.GetConfigurationParameters(self.x_pipeline)
             self.params.spatial_median_filter_enable = False
-            self.params.spatial_resampling_width = 318    # XIMEA output width  (default 407)
-            self.params.spatial_resampling_height = 168   # XIMEA output height (default 215)
+            self.params.spatial_resampling_width = 407    # XIMEA output width  (default 407)
+            self.params.spatial_resampling_height = 215   # XIMEA output height (default 215)
             self.get_logger().info(f'Configuration Params : {self.params}')
             HSI_MOSAIC.SetConfigurationParameters(self.x_pipeline, self.params)
             self.get_logger().info(f'Initializing Pipeline')
+
             HSI_MOSAIC.Initialize(self.x_pipeline)
 
             outputdataformat = HSI_MOSAIC.GetOutputDataFormat(self.x_pipeline)
             self.get_logger().info(f'Output Data Format = {outputdataformat}')
-
+            self.use_pipeline_band_centres('ximea', outputdataformat)
             self.x_cube = HSI_COMMON.AllocateCube(outputdataformat)
-
             self.get_logger().info(f'Starting Pipeline ...')
+
             HSI_MOSAIC.Start(self.x_pipeline)
 
         elif model == 'imec':
             self.i_pipeline = HSI_MOSAIC.Create(self.my_context)
             self.get_logger().info(str(self.i_pipeline))
-
             self.params = HSI_MOSAIC.GetConfigurationParameters(self.i_pipeline)
             self.params.spatial_median_filter_enable = False
             self.get_logger().info(f'Configuration Params : {self.params}')
             HSI_MOSAIC.SetConfigurationParameters(self.i_pipeline, self.params)
             self.get_logger().info(f'Initializing Pipeline')
+
             HSI_MOSAIC.Initialize(self.i_pipeline)
 
             outputdataformat = HSI_MOSAIC.GetOutputDataFormat(self.i_pipeline)
             self.get_logger().info(f'Output Data Format = {outputdataformat}')
-
+            self.use_pipeline_band_centres('imec', outputdataformat)
             self.i_cube = HSI_COMMON.AllocateCube(outputdataformat)
-
             self.get_logger().info(f'Starting Pipeline ...')
+
             HSI_MOSAIC.Start(self.i_pipeline)
+
+    def use_pipeline_band_centres(self, model, outputdataformat) -> None:
+        '''
+        Replace the nominal XML band centres with the ones the pipeline reports
+        for the cube it actually produces (bands_nm). These include the shift
+        from the lens's cone of light and are the true centres of the published
+        bands. FWHM and QE stay at their nominal per-band XML values, since the
+        pipeline does not report effective ones.
+        '''
+        bands_nm = getattr(outputdataformat, 'bands_nm', None)
+        if bands_nm is None:
+            bands_nm = outputdataformat['bands_nm']
+        bands_nm = [float(b) for b in bands_nm]
+
+        nominal = self.x_central_wave if model == 'ximea' else self.i_central_wave
+        if len(bands_nm) != len(nominal):
+            self.get_logger().warn(
+                f'{model}: pipeline outputs {len(bands_nm)} bands but the XML has {len(nominal)} '
+                f'selected bands; per-band FWHM/QE may not line up with the cube.')
+
+        if model == 'ximea':
+            self.x_central_wave = bands_nm
+        elif model == 'imec':
+            self.i_central_wave = bands_nm
+        self.get_logger().info(
+            f'{model}: publishing {len(bands_nm)} band centres '
+            f'({bands_nm[0]:.2f}-{bands_nm[-1]:.2f} nm)')
 
     def parse_parameters(self, model) -> None:
         '''
@@ -275,21 +337,33 @@ class DataCubesGenerator(Node):
                 self.i_central_wave = []
                 self.i_fwhm = []
                 self.i_QE = []
-            for band in Bs_data.find_all("wavelength_nm"):
+            # Read only the physical filter bands (<band> elements) that the
+            # pipeline outputs (selected="true"), taking each band's first-order
+            # peak. A plain find_all("wavelength_nm") also matched the <virtual_band>
+            # entries of every spectral correction matrix in the file, so the lists
+            # held the physical bands plus each matrix's copy (XIMEA 25 + 24 + 24 = 73,
+            # IMEC 9 + 9 + 9 = 27).
+            bands = []
+            for band in Bs_data.find_all("band"):
+                if band.get('selected', 'true') != 'true':
+                    continue
+                peak = band.find("peak", attrs={"order": "1"}) or band.find("peak")
+                bands.append((float(peak.find("wavelength_nm").getText()),
+                              float(peak.find("fwhm_nm").getText()),
+                              float(peak.find("QE").getText())))
+
+            # The XML lists bands in mosaic tile order; the cube is in ascending
+            # wavelength order, so sort to match.
+            bands.sort(key=lambda b: b[0])
+            for wavelength, fwhm, qe in bands:
                 if model == 'ximea':
-                    self.x_central_wave.append(float(band.getText()))
+                    self.x_central_wave.append(wavelength)
+                    self.x_fwhm.append(fwhm)
+                    self.x_QE.append(qe)
                 elif model == 'imec':
-                    self.i_central_wave.append(float(band.getText()))
-            for band in Bs_data.find_all("fwhm_nm"):
-                if model == 'ximea':
-                    self.x_fwhm.append(float(band.getText()))
-                elif model == 'imec':
-                    self.i_fwhm.append(float(band.getText()))
-            for band in Bs_data.find_all("QE"):
-                if model == 'ximea':
-                    self.x_QE.append(float(band.getText()))
-                elif model == 'imec':
-                    self.i_QE.append(float(band.getText()))
+                    self.i_central_wave.append(wavelength)
+                    self.i_fwhm.append(fwhm)
+                    self.i_QE.append(qe)
             # Get calibration coefficients
             coefficients = []
             for coefficient in Bs_data.find_all("coefficients"):
@@ -300,10 +374,12 @@ class DataCubesGenerator(Node):
         '''    Listen to user parameter requests    '''     
         frame_time = 1/(request.frame_rate) * 1000    
         self.get_logger().info(f'Incoming message: {request}')
+
         # Check the time bounds are OK
         if request.camera_model == 'imec':
             cam = self.i_device
             integration_range = (0.010000, 90)
+
         if request.camera_model == 'ximea':
             cam = self.x_device
             integration_range = (0.021000, 999.995000)
@@ -337,7 +413,7 @@ class DataCubesGenerator(Node):
                 r_params.frame_rate_hz = frame_rate           
                 self.get_logger().info(f'Update Runtime Params: {HSI_CAMERA.SetRuntimeParameters(camera, r_params)}')      
                 HSI_CAMERA.Start(camera)
-                rclpy.spin_once(self, timeout_sec=0.1)
+                time.sleep(0.1)
                 response.success = True
                 return response      
 
@@ -351,8 +427,6 @@ class DataCubesGenerator(Node):
 
 
     def undistort(self, cube, model):
-        #criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 1)
-
         imec_K = [[571.0648167, 0, 96.21785],
                   [0, 572.4372833, 77.75815],
                   [0, 0, 1]]
@@ -363,59 +437,77 @@ class DataCubesGenerator(Node):
                    [0, 0, 1]]
         ximea_distort = [0.12115, -5.45603333333333, 0.0021, -0.004283333333333, 100.424166666667]
     
+        # The pixel remapping depends only on the intrinsics and the image size, so
+        # the maps are built once per camera and reused. cv2.undistort rebuilt them
+        # on every call, once per band, every frame. The result is a new array, so
+        # the SDK's cube buffer is left untouched.
+        height, width, bands = cube.shape
+
         if model == 'imec':
-            for lam in range(cube.shape[2]):
-                undistorted_img = cv2.undistort(cube[:, :, lam], np.matrix(imec_K), np.array(imec_distort))
-                cube[:, :, lam] = undistorted_img
+            if self.i_undistort_maps is None or self.i_undistort_maps[0] != (height, width):
+                map1, map2 = cv2.initUndistortRectifyMap(np.array(imec_K), np.array(imec_distort), None,
+                                                         np.array(imec_K), (width, height), cv2.CV_16SC2)
+                self.i_undistort_maps = ((height, width), map1, map2)
+            _, map1, map2 = self.i_undistort_maps
 
         elif model == 'ximea':
-            for lam in range(cube.shape[2]):
-                undistorted_img = cv2.undistort(cube[:, :, lam], np.matrix(ximea_K), np.array(ximea_distort))
-                cube[:, :, lam] = undistorted_img
+            if self.x_undistort_maps is None or self.x_undistort_maps[0] != (height, width):
+                map1, map2 = cv2.initUndistortRectifyMap(np.array(ximea_K), np.array(ximea_distort), None,
+                                                         np.array(ximea_K), (width, height), cv2.CV_16SC2)
+                self.x_undistort_maps = ((height, width), map1, map2)
+            _, map1, map2 = self.x_undistort_maps
 
-    def publish_cubes(self, x_cube: np.ndarray, i_cube: np.ndarray):
+        # Remap all bands in one call where OpenCV supports it, otherwise band by band
+        if self.remap_multichannel:
+            try:
+                return cv2.remap(cube, map1, map2, cv2.INTER_LINEAR)
+            except cv2.error:
+                self.remap_multichannel = False
+                self.get_logger().warn('Multi-channel remap not supported by this OpenCV; remapping band by band')
+
+        undistorted = np.empty_like(cube)
+        for lam in range(bands):
+            undistorted[:, :, lam] = cv2.remap(cube[:, :, lam], map1, map2, cv2.INTER_LINEAR)
+        return undistorted
+
+    def publish_cubes(self, x_cube: np.ndarray, i_cube: np.ndarray, x_stamp, i_stamp):
         '''
         Publish hyperspectral datacubes
         '''
         t0 = time.time()
-        #self.undistort(x_cube, 'ximea')
-        #self.undistort(i_cube, 'imec')
+        x_cube = self.undistort(x_cube, 'ximea')
+        i_cube = self.undistort(i_cube, 'imec')
         t1 = time.time()
-        # print(f'XIMEA: {x_cube.shape}')
-        # print(f'IMEC: {i_cube.shape}')
-        # print(f'VIMBA: {self.raw_img.shape}')
-        # tcube = ((x_cube[:,:,0]) * (1/((x_cube[:,:,0].max())) * 255)).astype('uint8') 
-        # tcube = ((i_cube[:,:,0]) * (1/((i_cube[:,:,0].max())) * 255)).astype('uint8')
         #Messages
         x_ros_cube = DataCube()
         i_ros_cube = DataCube()
         ros_cubes = MultipleDataCubes()
         t2 = time.time()
-        # np.save('/home/river/x_cube.npy', x_cube)
-        # np.save('/home/river/i_cube.npy', i_cube)
-        # Create header
-        h = Header()
-        h.stamp = self.get_clock().now().to_msg()
-        
-        x_ros_cube.header = h
+        # Headers carry each camera's capture time, not the publish time
+        x_header = Header()
+        x_header.stamp = x_stamp.to_msg()
+        i_header = Header()
+        i_header.stamp = i_stamp.to_msg()
+
+        x_ros_cube.header = x_header
         t3 = time.time()
         #x_ros_cube.data = x_cube.astype(np.float32).flatten().tolist()
         x_ros_cube.data = array.array('f', np.ascontiguousarray(x_cube, dtype=np.float32).tobytes())
         t4 = time.time()
         # x_ros_cube.data = x_cube.astype(np.float32).flatten().tolist()
-        x_ros_cube.width, x_ros_cube.height, x_ros_cube.lam = tuple(x_cube.shape)
+        x_ros_cube.height, x_ros_cube.width, x_ros_cube.lam = tuple(x_cube.shape)
         x_ros_cube.qe = self.x_QE
         x_ros_cube.fwhm_nm = self.x_fwhm
         x_ros_cube.central_wavelengths = self.x_central_wave
         t5 = time.time()
 
-        i_ros_cube.header = h
+        i_ros_cube.header = i_header
         t6 = time.time()
         #i_ros_cube.data = i_cube.astype(np.float32).flatten().tolist()
         i_ros_cube.data = array.array('f', np.ascontiguousarray(i_cube, dtype=np.float32).tobytes())
         t7 = time.time()
         # i_ros_cube.data = i_cube.astype(np.float32).flatten().tolist()
-        i_ros_cube.width, i_ros_cube.height, i_ros_cube.lam = tuple(i_cube.shape)
+        i_ros_cube.height, i_ros_cube.width, i_ros_cube.lam = tuple(i_cube.shape)
         i_ros_cube.qe = self.i_QE
         i_ros_cube.fwhm_nm = self.i_fwhm
         i_ros_cube.central_wavelengths = self.i_central_wave
@@ -423,7 +515,10 @@ class DataCubesGenerator(Node):
         ros_cubes.cubes = [x_ros_cube, i_ros_cube]
         t9 = time.time()
 
-        ros_cubes.im = self.raw_img
+        # RGB frame captured closest to the midpoint of the two HSI captures
+        hsi_ns = (x_stamp.nanoseconds + i_stamp.nanoseconds) // 2
+        raw_img, rgb_offset_ms = self.nearest_rgb(hsi_ns)
+        ros_cubes.im = raw_img
         #ros_cubes.im = ros_numpy.msgify(Image, self.raw_img, encoding="8UC3")
         t10 = time.time()
         self.pub_cube.publish(ros_cubes)
@@ -440,7 +535,9 @@ class DataCubesGenerator(Node):
         f'IMeta:{t8-t7:.3f} '
         f'CubeAssign:{t9-t8:.3f} '
         f'ImAssign:{t10-t9:.3f} '
-        f'Publish:{t11-t10:.3f}'
+        f'Publish:{t11-t10:.3f} '
+        f'| Sync: IMEC-XIMEA {(i_stamp.nanoseconds - x_stamp.nanoseconds) / 1e6:+.1f} ms, '
+        f'RGB-HSI {rgb_offset_ms:+.1f} ms'
         )
 
     def _acquire_cube(self, device, frame, pipeline, cube, label):
@@ -456,10 +553,12 @@ class DataCubesGenerator(Node):
         '''
         t_start = time.time()
         HSI_CAMERA.AcquireFrame(device, frame=frame)
+        # Capture time: the moment the frame is delivered, before any processing
+        capture_stamp = self.get_clock().now()
         HSI_MOSAIC.PushFrame(pipeline, frame)
         HSI_MOSAIC.GetCube(pipeline, cube, timeout_ms=1000)
         py_cube = HSI_COMMON.CubeAsArray(cube, BSQ=False)
-        return label, py_cube, time.time() - t_start
+        return label, py_cube, time.time() - t_start, capture_stamp
 
     def timer_callback(self):
         '''
@@ -491,22 +590,39 @@ class DataCubesGenerator(Node):
                     # catches failures and triggers restart_camera(). Both joins
                     # happen inside the with-block, so the lock is held until
                     # both cameras are done.
-                    _, x_py_cube, x_dt = x_future.result()
-                    _, i_py_cube, i_dt = i_future.result()
+                    _, x_py_cube, x_dt, x_stamp = x_future.result()
+                    _, i_py_cube, i_dt, i_stamp = i_future.result()
                     t_acq = time.time() - t0
 
-                    self.get_logger().info(f'Cube shapes XIMEA: {x_py_cube.shape}, IMEC: {i_py_cube.shape}, VIMBA: {self.raw_img.width}x{self.raw_img.height}')
+                    # CubeAsArray can return a view of the SDK's cube buffer, which
+                    # the next GetCube overwrites. Copy before handing the cubes to
+                    # the publish thread so it never reads a half-updated buffer.
+                    x_py_cube = x_py_cube.copy()
+                    i_py_cube = i_py_cube.copy()
 
-                    t3 = time.time()
-                    self.publish_cubes(x_py_cube, i_py_cube)
-                    t_pub = time.time() - t3
+                # Publishing happens outside the lock and on its own thread, so cube N
+                # is undistorted and published while cube N+1 is being acquired.
+                # Wait for the previous publish first, so at most one is in flight
+                # and messages go out in order.
+                t3 = time.time()
+                if self.pub_future is not None:
+                    try:
+                        self.pub_future.result()
+                    except Exception:
+                        self.get_logger().error('Publishing failed:\n' + traceback.format_exc())
+                t_wait = time.time() - t3
+                self.pub_future = self.pub_executor.submit(self.publish_cubes, x_py_cube, i_py_cube, x_stamp, i_stamp)
 
-                    # Parallel timing: per-worker durations plus the wall-clock
-                    # for the overlapped section. If acquire(parallel) is close
-                    # to max(x_dt, i_dt) the SDK is releasing the GIL and this is
-                    # helping; if it's close to x_dt + i_dt, the GIL is held and
-                    # the work is still serial.
-                    self.get_logger().info(f'Acquire XIMEA:{x_dt:.3f} Acquire IMEC:{i_dt:.3f} Parallel acquire:{t_acq:.3f} (serial would be ~{x_dt+i_dt:.3f}) Publish:{t_pub:.3f}')
+                # Loop period: time between the starts of consecutive acquisitions
+                if self.last_loop_start is not None:
+                    period = t0 - self.last_loop_start
+                    rate = f'Loop:{period:.3f} ({1/period:.1f} Hz)'
+                else:
+                    rate = 'Loop: first frame'
+                self.last_loop_start = t0
+
+                self.get_logger().info(f'Cube shapes XIMEA: {x_py_cube.shape}, IMEC: {i_py_cube.shape}, VIMBA: {self.raw_img.width}x{self.raw_img.height}')
+                self.get_logger().info(f'Acquire XIMEA:{x_dt:.3f} Acquire IMEC:{i_dt:.3f} Parallel acquire:{t_acq:.3f} (serial would be ~{x_dt+i_dt:.3f}) Wait for previous publish:{t_wait:.3f} {rate}')
 
         except Exception as e:
             self.get_logger().error(traceback.format_exc())
@@ -518,6 +634,7 @@ class DataCubesGenerator(Node):
         Custom shutdown behavior
         '''
         self.get_logger().info('Cleaning up node for the cameras')
+        self.pub_executor.shutdown(wait=True)
         self.acq_executor.shutdown(wait=True)
         HSI_CAMERA.Pause(self.x_device)
         HSI_CAMERA.Stop(self.x_device)
@@ -539,7 +656,11 @@ def main(args=None):
     rclpy.init(args=args)
     data_cubes_processor = DataCubesGenerator()
     try:
-        rclpy.spin(data_cubes_processor)
+        # Two threads: one for the timer/service (default callback group), one for
+        # the RGB subscription, so RGB frames are received during acquisition.
+        executor = MultiThreadedExecutor(num_threads=2)
+        executor.add_node(data_cubes_processor)
+        executor.spin()
     finally:
         data_cubes_processor.shutdown()
         data_cubes_processor.destroy_node()
