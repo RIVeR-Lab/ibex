@@ -1,9 +1,9 @@
 import os
 import array
 import numpy as np
+from collections import deque
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header
 from ament_index_python.packages import get_package_share_directory
 from hyper_drive_interfaces.msg import MultipleDataCubes, DataCube
 from spectrometer_interfaces.msg import Spectra
@@ -19,6 +19,14 @@ class LightMeasure(Node):
         #indices of the live spectrum nearest each camera band (set on first spectra message)
         self.ximea_wavelengths_index = None
         self.imec_wavelengths_index = None
+
+        #recent spectra as (stamp_ns, S_raw_ximea, S_raw_imec), about 2 s at 20 Hz, so
+        #each cube can be paired with the spectrum measured closest to its capture time
+        self.spectra_buffer = deque(maxlen=40)
+        self.spectra_clock_warned = False
+
+        #band centres are checked against the incoming cubes once, on the first message
+        self.bands_checked = False
 
         # Subscriptions
         self.cubes_sub = self.create_subscription(
@@ -124,6 +132,49 @@ class LightMeasure(Node):
         self.S_raw_ximea = data[self.ximea_wavelengths_index]
         self.S_raw_imec = data[self.imec_wavelengths_index]
 
+        #measurement time of this spectrum, on the same clock as the cube stamps.
+        #if the spectrometer's header stamp is unset or on another clock, use the
+        #time it was received instead
+        receive_ns = self.get_clock().now().nanoseconds
+        stamp = self.stamp_ns(msg.header.stamp)
+        if abs(stamp - receive_ns) > 1_000_000_000:
+            if not self.spectra_clock_warned:
+                self.get_logger().warn(
+                    f'Spectra header stamps are {(stamp - receive_ns) / 1e9:+.1f} s from ROS time '
+                    f'(unset or another clock?). Matching spectra by receive time instead.')
+                self.spectra_clock_warned = True
+            stamp = receive_ns
+        self.spectra_buffer.append((stamp, self.S_raw_ximea, self.S_raw_imec))
+
+    @staticmethod
+    def stamp_ns(stamp) -> int:
+        return stamp.sec * 1_000_000_000 + stamp.nanosec
+
+    def nearest_spectrum(self, target_ns):
+        '''
+        Return the buffered spectrum measured closest to target_ns, and its offset
+        from target_ns in milliseconds.
+        '''
+        spectra = list(self.spectra_buffer)
+        stamp, S_raw_ximea, S_raw_imec = min(spectra, key=lambda sp: abs(sp[0] - target_ns))
+        return S_raw_ximea, S_raw_imec, (stamp - target_ns) / 1e6
+
+    def check_band_centres(self, msg):
+        '''
+        Warn once if the band centres in the incoming cubes differ from the
+        ximea_lamba / imec_lamba files used to sample the spectrometer.
+        '''
+        self.bands_checked = True
+        for name, cube, static in (('ximea', msg.cubes[0], self.static_wavelengths_ximea),
+                                   ('imec', msg.cubes[1], self.static_wavelengths_imec)):
+            published = np.array(cube.central_wavelengths, dtype=np.float64)
+            if published.size != static.size:
+                self.get_logger().warn(f'{name}: cubes report {published.size} band centres but '
+                                       f'{name}_lamba.npy has {static.size}')
+            elif np.max(np.abs(published - static)) > 0.5:
+                self.get_logger().warn(f'{name}: cube band centres differ from {name}_lamba.npy by up to '
+                                       f'{np.max(np.abs(published - static)):.2f} nm; regenerate the .npy')
+
     def cubes_callback(self, msg):
         '''
         This references Technical Note Ambient Light Sensor documents
@@ -147,8 +198,15 @@ class LightMeasure(Node):
             self.get_logger().warn('Waiting for /combined_spectra before correcting cubes...', throttle_duration_sec=5.0)
             return
 
+        if not self.bands_checked:
+            self.check_band_centres(msg)
+
         raw_ximea = np.frombuffer(msg.cubes[0].data, dtype=np.float32)
         raw_imec = np.frombuffer(msg.cubes[1].data, dtype=np.float32)
+
+        #spectrum measured closest to each camera's capture time
+        S_raw_ximea, _, spec_offset_ximea = self.nearest_spectrum(self.stamp_ns(msg.cubes[0].header.stamp))
+        _, S_raw_imec, spec_offset_imec = self.nearest_spectrum(self.stamp_ns(msg.cubes[1].header.stamp))
 
         #the camera references must match the live cubes element for element
         if raw_ximea.size != self.C_den_ximea.size or raw_imec.size != self.C_den_imec.size:
@@ -158,19 +216,19 @@ class LightMeasure(Node):
             return
 
         #calculating S_ref_ximea
-        S_ref_ximea = np.divide(np.subtract(self.S_raw_ximea, self.S_dark_ximea), self.S_den_ximea, out=np.zeros_like(self.S_den_ximea), where=self.S_den_ximea!=0) * self.S_norm
+        S_ref_ximea = np.divide(np.subtract(S_raw_ximea, self.S_dark_ximea), self.S_den_ximea, out=np.zeros_like(self.S_den_ximea), where=self.S_den_ximea!=0) * self.S_norm
 
         #calculating S_ref_imec
-        S_ref_imec = np.divide(np.subtract(self.S_raw_imec, self.S_dark_imec), self.S_den_imec, out=np.zeros_like(self.S_den_imec), where=self.S_den_imec!=0) * self.S_norm
+        S_ref_imec = np.divide(np.subtract(S_raw_imec, self.S_dark_imec), self.S_den_imec, out=np.zeros_like(self.S_den_imec), where=self.S_den_imec!=0) * self.S_norm
 
         #calculating C_ref for ximea
         C_ref_ximea = np.divide(np.subtract(raw_ximea, self.C_dark_ximea), self.C_den_ximea, out=np.zeros_like(self.C_den_ximea), where=self.C_valid_ximea)
-        C_ref_ximea = np.reshape(C_ref_ximea, (msg.cubes[0].width, msg.cubes[0].height, msg.cubes[0].lam))
+        C_ref_ximea = np.reshape(C_ref_ximea, (msg.cubes[0].height, msg.cubes[0].width, msg.cubes[0].lam))
         C_ref_correct_ximea = np.divide(C_ref_ximea, S_ref_ximea, out=np.zeros_like(C_ref_ximea), where=S_ref_ximea!=0)
 
         #calculating C_ref for imec
         C_ref_imec = np.divide(np.subtract(raw_imec, self.C_dark_imec), self.C_den_imec, out=np.zeros_like(self.C_den_imec), where=self.C_valid_imec)
-        C_ref_imec = np.reshape(C_ref_imec, (msg.cubes[1].width, msg.cubes[1].height, msg.cubes[1].lam))
+        C_ref_imec = np.reshape(C_ref_imec, (msg.cubes[1].height, msg.cubes[1].width, msg.cubes[1].lam))
         C_ref_correct_imec = np.divide(C_ref_imec, S_ref_imec, out=np.zeros_like(C_ref_imec), where=S_ref_imec!=0)
 
         #max and min values of S_ref and of the data cubes before and after correction
@@ -182,10 +240,18 @@ class LightMeasure(Node):
             print(f'Raw imec - Max: {np.max(raw_imec)} Min: {np.min(raw_imec)}')
             print(f'Corrected imec - Max: {np.max(C_ref_correct_imec)} Min: {np.min(C_ref_correct_imec)}')
 
-        #pass values to publish function
-        self.publish_cube(C_ref_correct_ximea, C_ref_correct_imec, msg.cubes[0], msg.cubes[1])
+        #timing: how far each spectrum is from its cube, and how old the cubes are
+        #by the time they have been corrected
+        now_ns = self.get_clock().now().nanoseconds
+        age_ms = (now_ns - self.stamp_ns(msg.cubes[0].header.stamp)) / 1e6
+        self.get_logger().info(
+            f'Sync: SPEC-XIMEA {spec_offset_ximea:+.1f} ms, SPEC-IMEC {spec_offset_imec:+.1f} ms | '
+            f'XIMEA capture to corrected: {age_ms:.0f} ms')
 
-    def publish_cube(self, ximea_cube: np.ndarray, imec_cube: np.ndarray, ximea_msg: DataCube, imec_msg: DataCube):
+        #pass values to publish function
+        self.publish_cube(C_ref_correct_ximea, C_ref_correct_imec, msg.cubes[0], msg.cubes[1], msg.im)
+
+    def publish_cube(self, ximea_cube: np.ndarray, imec_cube: np.ndarray, ximea_msg: DataCube, imec_msg: DataCube, rgb_img):
         '''
         Publish hyperspectral datacubes
         '''
@@ -195,12 +261,8 @@ class LightMeasure(Node):
         ros_imec = DataCube()
         ros_cubes = MultipleDataCubes()
 
-        # Create header
-        h = Header()
-        h.stamp = self.get_clock().now().to_msg()
-
-        #ximea DataCube
-        ros_ximea.header = h
+        #ximea DataCube (header keeps the camera's capture time from synchronous_cubes)
+        ros_ximea.header = ximea_msg.header
         np.nan_to_num(ximea_cube, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         ros_ximea.data = array.array('f', ximea_cube.tobytes())
         ros_ximea.height, ros_ximea.width, ros_ximea.lam = tuple(ximea_cube.shape)
@@ -209,7 +271,7 @@ class LightMeasure(Node):
         ros_ximea.central_wavelengths = ximea_msg.central_wavelengths
 
         #imec DataCube
-        ros_imec.header = h
+        ros_imec.header = imec_msg.header
         np.nan_to_num(imec_cube, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         ros_imec.data = array.array('f', imec_cube.tobytes())
         ros_imec.height, ros_imec.width, ros_imec.lam = tuple(imec_cube.shape)
@@ -219,6 +281,9 @@ class LightMeasure(Node):
 
         #combined cubes data message (MultipleDataCubes msg)
         ros_cubes.cubes = [ros_ximea, ros_imec]
+
+        #RGB frame that synchronous_cubes paired with these cubes
+        ros_cubes.im = rgb_img
 
         #publish
         self.pub_corrected_cubes.publish(ros_cubes)
