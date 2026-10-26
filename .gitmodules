@@ -10,3 +10,6 @@
 [submodule "packages/shared_link_bridge"]
 	path = packages/shared_link_bridge
 	url = https://github.com/RIVeR-Lab/shared_link_bridge.git
+[submodule "packages/hsi_registration"]
+	path = packages/hsi_registration
+	url = https://github.com/RIVeR-Lab/hsi_registration.git
