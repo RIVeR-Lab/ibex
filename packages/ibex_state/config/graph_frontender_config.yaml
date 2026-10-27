@@ -1,3 +1,19 @@
+
+
+
+
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
+
+
+
+
+
 graph_frontender:
   ros__parameters:
     wheelbase: 1.2          # TODO: set to IBEX's actual wheelbase (m)

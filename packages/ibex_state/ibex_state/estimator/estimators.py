@@ -5,6 +5,16 @@ Interface is deliberately callback-shaped (add_primary / add_lidar /
 add_gps / add_imu / get_estimate) so a ROS2 node can be a thin wrapper:
 timer -> add_primary, each subscription -> its add_* method.
 """
+
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
+
+
 import numpy as np
 import gtsam
 import gtsam_unstable

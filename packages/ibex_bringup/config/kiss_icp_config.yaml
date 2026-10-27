@@ -1,5 +1,5 @@
 kiss_icp:
   topic: /ouster/points
   base_frame: base_link
-  lidar_odom_frame: odom
+  lidar_odom_frame: kiss_odom
   visualize: false

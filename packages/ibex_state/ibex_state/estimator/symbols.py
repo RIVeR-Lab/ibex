@@ -1,5 +1,16 @@
 """Fixed gtsam single-character symbol prefixes."""
 
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
+
+
+
+
 POSE = 'x'              # primary pose nodes (timer-driven backbone)
 VELOCITY = 'v'          # velocity nodes, one per primary pose
 RATE = 'r'              # angular rate (roll_dot, pitch_dot) chain

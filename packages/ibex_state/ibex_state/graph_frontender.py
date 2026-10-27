@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
 import sys
 import rclpy
 from rclpy.node import Node

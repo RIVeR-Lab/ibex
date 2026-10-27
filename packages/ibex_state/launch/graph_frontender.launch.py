@@ -1,4 +1,14 @@
 # Launch file for IBEX state estimation
+
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
+
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution

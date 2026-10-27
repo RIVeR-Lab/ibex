@@ -44,13 +44,24 @@ def generate_launch_description():
     )
     ld.add_action(kiss_icp_launch)
 
-    graph_frontender_launch = IncludeLaunchDescription(
+
+    # DEPRECATED: 27 Oct 26, replaced with RTAB Map
+    # graph_frontender_launch = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         PathJoinSubstitution(
+    #             [FindPackageShare("ibex_state"), "launch", "graph_frontender.launch.py"]
+    #         )
+    #     ),
+    # )
+    # ld.add_action(graph_frontender_launch)
+
+    rtabmap_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("ibex_state"), "launch", "graph_frontender.launch.py"]
+                [FindPackageShare("ibex_state"), "launch", "rtabmap.launch.py"]
             )
         ),
     )
-    ld.add_action(graph_frontender_launch)
+    ld.add_action(rtabmap_launch)
 
     return ld

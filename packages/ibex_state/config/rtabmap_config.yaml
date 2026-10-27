@@ -1,0 +1,65 @@
+# RTAB-Map lidar-only config for IBEX (Ouster)
+#
+# RTAB-Map's internal parameters ("Group/Name") are read as strings, so keep them quoted.
+# If you change Icp/VoxelSize, also change Icp/MaxCorrespondenceDistance (rule of thumb: 10x voxel).
+
+#=========================# Launch settings #=========================#
+# Read by the launch file only (not a real node). Topic remaps can't be ROS params.
+ibex_launch:
+  ros__parameters:
+    lidar_topic: "/ouster/points"
+
+#=========================# Shared (all nodes) #=========================#
+/**:
+  ros__parameters:
+    frame_id: "base_link"          # robot base frame
+    qos: 2                         # 0=system default, 1=reliable, 2=best effort
+    wait_for_transform: 0.2
+
+    Icp/PointToPlane: "true"
+    Icp/Iterations: "10"
+    Icp/VoxelSize: "0.5"           # ICP downsampling only, not map resolution
+    Icp/Epsilon: "0.001"
+    Icp/PointToPlaneK: "20"
+    Icp/PointToPlaneRadius: "0"
+    Icp/MaxTranslation: "3"        # reject ICP jumps > 3 m
+    Icp/MaxCorrespondenceDistance: "5.0"
+    Icp/Strategy: "1"              # 1=libpointmatcher, 0=PCL
+    Icp/OutlierRatio: "0.7"
+
+#=========================# ICP odometry #=========================#
+/rtabmap/icp_odometry:
+  ros__parameters:
+    odom_frame_id: "odom"
+    expected_update_rate: 15.0     # slightly above the Ouster's 10 Hz
+    deskewing: false                # constant-velocity deskew, no IMU
+    deskewing_slerp: false
+
+    Odom/ScanKeyFrameThr: "0.4"    # new keyframe when overlap < 40%
+    OdomF2M/ScanSubtractRadius: "0.5"
+    OdomF2M/ScanMaxSize: "15000"
+    OdomF2M/BundleAdjustment: "false"
+    Icp/CorrespondenceRatio: "0.01"
+
+    scan_cloud_max_points: 65536   # Ouster 1024x64
+
+#=========================# RTAB-Map SLAM #=========================#
+/rtabmap/rtabmap:
+  ros__parameters:
+    map_frame_id: "map"
+    subscribe_depth: false
+    subscribe_rgb: false
+    subscribe_scan_cloud: true
+    subscribe_odom_info: true
+
+    Reg/Strategy: "1"              # ICP registration for loop closures
+    RGBD/ProximityMaxGraphDepth: "0"
+    RGBD/ProximityPathMaxNeighbors: "1"
+    RGBD/LinearUpdate: "0.05"      # new graph node every 5 cm ...
+    RGBD/AngularUpdate: "0.05"     # ... or 0.05 rad
+    RGBD/CreateOccupancyGrid: "false"
+    Mem/NotLinkedNodesKept: "false"
+    Mem/STMSize: "30"              # last 30 nodes excluded from loop closure
+    Icp/CorrespondenceRatio: "0.2" # loop closures need >= 20% overlap
+
+    # Grid/CellSize: "0.2"   # OctoMap voxel size (m); also the 2D grid's cell size

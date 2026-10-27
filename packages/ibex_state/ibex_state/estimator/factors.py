@@ -1,6 +1,19 @@
 """A place to create custom factors for use in IBEX state estimation"""
+
+
+# ================================================ #
+#
+# NOTE: This file is deprecated CAO 27 OCT 2026
+#       and was replaced with RTAB Map
+#
+# ================================================ #
+
+
+
 import gtsam
 import numpy as np
+
+
 
 def make_nhc_factor(pose_key, vel_key, noise_model, eps=1e-6):
     """Non-holonomic constraint: body-frame lateral + vertical velocity are ~0 (no sideslip, no independent bounce)."""
