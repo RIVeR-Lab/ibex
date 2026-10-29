@@ -251,7 +251,24 @@ both would be lost with the machine:
 | File | What it is |
 | --- | --- |
 | `allied_vision_config.xml` | The Alvium camera's settings, passed to `vimbax_camera` |
-| `fastdds_ibex_config.xml` | The DDS profile applied to every node on the vehicle |
+| `fastdds_ibex_config.xml` | A DDS profile — **possibly superseded, see below** |
+
+**A second DDS profile now exists**, in the repository rather than the home directory:
+`insta360_ros_driver/config/fastdds_large_msgs.xml`, which raises the Fast DDS
+shared-memory segment from 512 kB to **64 MB** so 12.4 MB decoded images do not fall back
+to fragmented UDP over loopback.
+
+`~/.bashrc` currently exports:
+
+```bash
+export FASTRTPS_DEFAULT_PROFILES_FILE=$HOME/ibex_ws/config/fastdds_large_msgs.xml
+```
+
+> TODO(verify): **two profiles, one environment variable.** Establish whether
+> `fastdds_ibex_config.xml` is still used, and point the export at the installed copy under
+> `install/insta360_ros_driver/share/` so terminals and launch files agree. Only one
+> profile can be active, and a process that does not see the variable gets neither — which
+> silently reintroduces the image drops.
 
 > TODO(verify): move both into package `config/` directories and point the launch files at
 > the installed share paths. See
@@ -265,6 +282,23 @@ Also here, by convention rather than necessity:
 | `~/ibex_ws/rosbag_library/` | Calibration bags — see [bag-schema.md](bag-schema.md) |
 | `~/imec_light_reference/context` | Where `light_reference.py` writes a new context |
 
+## Host configuration outside the repository
+
+**`/etc/sysctl.d/60-ros2-dds.conf`**, applied with `sudo sysctl --system`:
+
+```
+net.core.rmem_max=2147483647
+net.core.rmem_default=33554432
+net.ipv4.ipfrag_time=3
+net.ipv4.ipfrag_high_thresh=134217728
+```
+
+Required for large-message DDS traffic. `rmem_default` was deliberately kept moderate
+because it applies to every socket on the machine.
+
+> This file is not in the repository and would be lost with a reinstall. It belongs in
+> [workstation-setup.md](../00-onboarding/workstation-setup.md) as a setup step.
+
 ## Open items
 
 | Item | |
@@ -274,7 +308,8 @@ Also here, by convention rather than necessity:
 | **GPU driver status** | An RTX 4070 is fitted; whether CUDA works is unrecorded |
 | **Measured power draw** | Budgeted flat at 330 W; the Drok displays the real figure |
 | **Enclosure temperature in summer** | 35 °C ceiling, never logged |
-| **Two configs outside the repo** | Not version-controlled |
+| **Two DDS profiles, one env var** | Which is active is ambiguous; a process missing the variable gets neither |
+| **Configs and sysctl outside the repo** | `allied_vision_config.xml` and `60-ros2-dds.conf` are not version-controlled |
 
 ## Related
 

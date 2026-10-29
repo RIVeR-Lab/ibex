@@ -278,7 +278,10 @@ Nothing currently consumes it either — `ibex_state` applies no lever-arm corre
 treats GPS fixes as taken at the vehicle origin. So the 0.70 m forward and **0.60 m
 lateral** offset is an unapplied systematic position bias.
 
-> TODO(verify): two separate jobs. Moving the `return ld` is one line; applying the lever
+> **Deferred deliberately** — the GPS is not in its final mounting position, so the
+> recorded offset would be wrong anyway.
+
+> TODO(verify): once mounted, two jobs. Moving the `return ld` is one line; applying the lever
 > arm in `ibex_state`'s `add_gps` is real work. See
 > [launch-files.md](launch-files.md#there-is-unreachable-code-in-this-file).
 

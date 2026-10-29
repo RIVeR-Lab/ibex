@@ -219,6 +219,19 @@ This only matters if onboard recording is used, which it is not in normal operat
 the warning appears regardless, so a card below V30 produces an alarming message about a
 feature nobody is using.
 
+## The ROS pipeline does not get 4K
+
+The driver requests `RES_1920_960P30` and **the camera ignores it**, delivering
+**2880 × 1440 dual fisheye at 30 fps** — 1440 × 1440 per lens. That is what the pipeline
+actually receives, whatever the camera is capable of recording to its own SD card.
+
+Decoded, that is 12.4 MB per frame. See
+[insta360-ros-driver.md](../software/insta360-ros-driver.md#measured-stream-properties).
+
+> **Trust the resolution the node logs, not the one the driver requests.** A debugging
+> session was lost to assuming 1920 × 960 and deriving an equirectangular crop size from
+> it.
+
 ## Known issues & fixes
 
 ### No video, and the camera is in the wrong USB mode

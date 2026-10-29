@@ -112,7 +112,11 @@ after it never executes:
 
 **`base_link → gps_mount` at (0.70, 0.60, 0.85) is never published.**
 
-> TODO(verify): move the `return ld` to the end of the function. Note that nothing
+> **This is deferred deliberately, not overlooked.** The GPS is not in its final
+> mounting position, so the recorded offset would be wrong anyway. Move the `return ld`
+> to the end of the function when the GPS is mounted.
+
+> TODO(verify): once mounted, re-measure the offset and move the `return ld`. Note that nothing
 > currently *consumes* `gps_mount` either — `ibex_state` applies no lever-arm correction to
 > GPS fixes, treating them as taken at the vehicle origin. The recorded offset is
 > **0.70 m forward and 0.60 m lateral**, which is a systematic position bias rather than

@@ -11,6 +11,12 @@ Every topic on IBEX with its type, publisher, subscriber, and QoS.
 **Reference page.** Captured live with `system_bringup`, `hyper_drive`'s ambient-light
 pipeline, and `spectrometer_drivers` all running.
 
+> **Parts of this capture are stale.** The Insta360 pipeline was reworked on 2026-10-29,
+> after this was taken. `imu/data_raw` is now **RELIABLE depth 200** rather than best
+> effort, `imu_filter` no longer publishes to `/tf` (`publish_tf: false`), and its
+> parameter file now actually loads. **Recapture before relying on the Insta360 rows.**
+> See [insta360-ros-driver.md](../04-subsystems/perception/software/insta360-ros-driver.md).
+
 ## TODO(verify): rates are not yet measured
 
 The rate column is empty throughout this page. Filling it takes two passes, because
@@ -21,7 +27,7 @@ The rate column is empty throughout this page. Filling it takes two passes, beca
 These publish on their own timers or on sensor data and do not care where the vehicle is:
 
 ```bash
-for t in /ouster/points /ouster/imu /insta360/imu/data_raw /kiss/odometry \
+for t in /ouster/points /ouster/imu /kiss/odometry \
          /graph_pose /odom_offset /synchronous_cubes /corrected_cubes \
          /combined_spectra /ibsen_vnir/spectral_data /ibsen_nir/spectral_data \
          /camera/image_raw; do
@@ -29,6 +35,12 @@ for t in /ouster/points /ouster/imu /insta360/imu/data_raw /kiss/odometry \
   timeout 10 ros2 topic hz "$t" 2>&1 | tail -2
 done
 ```
+
+> **`ros2 topic hz` is wrong for batched IMU topics.** It measures *arrival* times, not
+> header stamps, and its small queue drops most of each burst. On
+> `/insta360/imu/data_raw` it reports **~52 Hz against a real 500 Hz**, because the driver
+> delivers ~50 samples every ~100 ms. Use `check_imu_timestamps.py` for that topic, and
+> treat `/ouster/imu` with the same suspicion until checked.
 
 ### Pass 2 — outdoors, engine running, vehicle moving
 
