@@ -193,8 +193,8 @@
         "sync_pulse_out_pulse_width": 10,
         "timestamp_mode": "TIME_FROM_INTERNAL_OSC",
         "udp_dest": "169.254.223.140",
-        "udp_port_imu": 59631,
-        "udp_port_lidar": 58293,
+        "udp_port_imu": 36166,
+        "udp_port_lidar": 56127,
         "udp_profile_imu": "LEGACY",
         "udp_profile_lidar": "RNG19_RFL8_SIG16_NIR16"
     },
