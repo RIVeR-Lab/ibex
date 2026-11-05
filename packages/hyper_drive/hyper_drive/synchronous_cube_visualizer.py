@@ -123,7 +123,7 @@ class SyncCubeVisualizer(Node):
         #     (msg_cube.width, msg_cube.height, msg_cube.lam)
         # ).astype(np.float32)
         cube = np.frombuffer(msg_cube.data, dtype=np.float32).reshape(
-            (msg_cube.width, msg_cube.height, msg_cube.lam)
+            (msg_cube.height, msg_cube.width, msg_cube.lam)
         )
 
         num_bands = msg_cube.lam
