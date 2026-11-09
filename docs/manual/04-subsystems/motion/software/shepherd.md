@@ -8,13 +8,14 @@ last-verified: TODO(verify)
 
 Kairos's operator application for the OCU. Serves [Motion](../README.md).
 
-> **This page is a stub, deliberately.** Shepherd is not in IBEX's control path — vehicle
-> commands come from [`shared_link_bridge`](shared-link-bridge.md) on Volta. It is
-> documented here because it exists, because it is still required for steering
-> calibration, and because someone who finds the vendor documentation should not have to
-> guess whether it is live.
+> **Shepherd is not optional, and it is not legacy.** It is outside the runtime control
+> loop — vehicle commands come from [`shared_link_bridge`](shared-link-bridge.md) on
+> Volta — but it is **the route to the P4S4's configuration**, and nothing in our stack
+> offers an alternative.
 >
-> If Shepherd's role grows, this page grows with it.
+> **Shepherd is not itself the configuration tool.** Its Assets tab opens a VNC session
+> into the P4S4, where [JAUS_IVN](jaus-ivn.md) runs and the Dynamic Knowledge Store holds
+> the persisted values. Shepherd is the door; JAUS_IVN is the room.
 
 ## Source
 
@@ -62,9 +63,33 @@ The interface has two primary tabs, **Asset View** and **Configuration**. Asset 
 contains the telemetry displays, the view tabs (map, video, browser), and the operational
 tabs including tele-operation.
 
+## Where configuration actually lives
+
+The P4S4 has two things talking to it, and they do different jobs.
+
+| Layer | Runs on | Role |
+| --- | --- | --- |
+| `shared_link_bridge` | **Volta** | Runtime commands over SharedLink UDP |
+| **Shepherd** | **The OCU** | Operator app; its **VNC button** opens a session into the P4S4 |
+| [**JAUS_IVN**](jaus-ivn.md) | **The P4S4** | The configuration application |
+| **Dynamic Knowledge Store** | **The P4S4** | Where persisted values live |
+
+So: **Volta commands the P4S4; the P4S4 configures itself through JAUS_IVN; the OCU is how
+you reach it.**
+
+Volta says *shift to this gear*. The P4S4 translates that into actuator travel using values
+that **only Shepherd can set.** If those values are wrong, the command is correct and the
+result is not.
+
+**Any mechanical change to the coupling between an actuator and the vehicle can invalidate
+the P4S4's configuration for that actuator.** That is not a hypothetical — see
+[Transmission shift values](#transmission-shift-values).
+
 ### What IBEX uses it for
 
-**Steering calibration, and nothing else.** The tele-operation tab provides:
+Two things, and the second was previously missing from this page.
+
+**1. Steering calibration.** The tele-operation tab provides:
 
 | Control | Effect |
 | --- | --- |
@@ -73,13 +98,22 @@ tabs including tele-operation.
 | ForceZero Position | Retains bump adjustments for the remainder of the operation |
 
 The calibration persists in the P4S4 across power cycles, so this is an installation-time
-task rather than a per-session one. See
-[kairos-p4s4-ocu.md](../hardware/kairos-p4s4-ocu.md).
+task rather than a per-session one.
+
+**2. VNC access to the P4S4**, through the **Assets** tab's VNC button. That session is how
+every configuration change is made, including the transmission shift values. See
+[jaus-ivn.md](jaus-ivn.md).
 
 ## Purpose
 
-It is the vendor's intended operator interface, and it is the only route to steering
-calibration that we have.
+It is the vendor's intended operator interface, and **the only route we have into the
+P4S4's configuration** — by way of the VNC session it opens into
+[JAUS_IVN](jaus-ivn.md).
+
+That makes the OCU a hard dependency for maintaining the vehicle, even though it takes no
+part in driving it. The machine running Shepherd is a **Panasonic CF-53, long
+discontinued** — so the dependency is on both the software and an unobtainable laptop. See
+[reorder.md](../../../99-appendix/reorder.md).
 
 ## Alternative software
 
@@ -132,6 +166,22 @@ documentation.
 - The [P4S4](../hardware/kairos-p4s4.md), powered — the Kairos box on
 - The ethernet cable moved from the router to the OCU
 
+## Configuration changes
+
+Shepherd's part is one click: **Assets tab → select the robot asset → VNC**.
+
+Everything after that happens in [JAUS_IVN](jaus-ivn.md) on the P4S4 — including the
+**transmission shift value calibration**, which is documented there in full from Kairos
+Bulletin BUL-023.
+
+**Prerequisite, which is Shepherd's side of it:** the P4S4's ethernet cable must be moved
+from the router to the OCU, and **Volta cannot reach the P4S4 while it is there.** Move it
+back afterwards.
+
+> TODO(verify): more Kairos documentation covering other configuration tools is expected.
+> Each should get its own page alongside `jaus-ivn.md` rather than being folded in here —
+> Shepherd's own role stays small.
+
 ## Known issues & fixes
 
 None recorded, because Shepherd is rarely exercised.
@@ -182,5 +232,6 @@ be needed for IBEX's current use, which is why they remain unresolved.
 - [kairos-p4s4-ocu.md](../hardware/kairos-p4s4-ocu.md) — the laptop it runs on
 - [kairos-p4s4.md](../hardware/kairos-p4s4.md) — the hardware it talks to
 - [actuators.md](../hardware/actuators.md) — what steering calibration calibrates
+- [jaus-ivn.md](jaus-ivn.md) — the configuration application this provides access to
 - [shared-link-bridge.md](shared-link-bridge.md) — what IBEX runs instead
 - [open-questions.md](../../../99-appendix/open-questions.md) — unresolved vendor questions

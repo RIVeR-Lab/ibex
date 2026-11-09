@@ -12,6 +12,13 @@ vehicle's controls, and the software that commands them.
 This is the subsystem where a mistake moves an 1,800 lb vehicle. Read
 [estop-chain.md](../../01-safety/estop-chain.md) before working on anything here.
 
+> **Two things talk to the P4S4, and they do different jobs.** Volta sends runtime
+> commands over SharedLink; the OCU running Shepherd sets the configuration those commands
+> are interpreted against. The OCU takes no part in driving and is still the only way to
+> reconfigure the controller — see
+> [shepherd.md](software/shepherd.md). Shepherd is the door; the configuration itself
+> lives on the P4S4 in [jaus-ivn.md](software/jaus-ivn.md).
+
 ## The control path
 
 ```

@@ -9,6 +9,13 @@ last-verified: TODO(verify)
 The rugged laptop that runs the Kairos Shepherd application. Serves
 [Motion](../README.md).
 
+> **The OCU is a hard dependency, not an accessory.** It takes no part in driving — Volta
+> commands the P4S4 over SharedLink — but it is **the only way to change the P4S4's
+> internal configuration.** Steering calibration and transmission shift values both live
+> there, and nothing in our stack can reach them.
+>
+> See [shepherd.md](../software/shepherd.md#two-interfaces-two-roles).
+
 ## Overview
 
 The OCU is the operator terminal supplied with the P4S4. It runs

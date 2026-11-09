@@ -22,6 +22,13 @@ remove the need.
 | Shift linkage torque | Monthly | In house |
 | Door hinge lubrication | As needed | In house |
 
+> **Adjusting the shift linkage can invalidate the P4S4's transmission configuration.**
+> The drive-by-wire actuator's travel is calibrated against a specific mechanical
+> arrangement, so moving the linkage changes what each actuator position means. After any
+> adjustment, confirm the commanded gears still engage — and if they do not, the values
+> are changed through Shepherd on the OCU, not in software on Volta. See
+> [jaus-ivn.md](../04-subsystems/motion/software/jaus-ivn.md#transmission-calibration).
+
 > TODO(verify): **how engine hours and mileage are read.** A 50-hour interval is
 > unenforceable if nobody knows where the hour meter is or what it currently reads. Record
 > where to find both, and the readings at the last service.
