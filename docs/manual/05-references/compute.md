@@ -193,6 +193,23 @@ for `volta`.
 > address and not the lidar's link-local one. Binding to `enp46s0` advertises an address
 > nothing can route to.
 
+### A NoMachine session is not a local seat
+
+**This distinction causes a class of bug worth knowing about before you hit it.**
+`systemd-logind` grants per-user ACLs on some devices — joysticks, webcams, sound — to the
+user on the **active local seat**. A NoMachine session is not one: `loginctl` shows its
+sessions with no seat assigned.
+
+**So anything relying on those ACLs works from the HDMI monitor and fails over NoMachine**,
+usually without an error message.
+
+It has already happened once, with the gamepad — see
+[shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md#the-gamepad-does-not-work-over-nomachine--fixed).
+The fix was adding `river` to the `input` group, which works regardless of login method.
+
+> **If something works locally and not over NoMachine, check device permissions before
+> anything else.** Group membership is the durable fix; seat ACLs are not available to you.
+
 ### Headless and headed modes
 
 Volta normally runs **headless** behind the rig, with no monitor.
@@ -308,6 +325,7 @@ because it applies to every socket on the machine.
 | **GPU driver status** | An RTX 4070 is fitted; whether CUDA works is unrecorded |
 | **Measured power draw** | Budgeted flat at 330 W; the Drok displays the real figure |
 | **Enclosure temperature in summer** | 35 °C ceiling, never logged |
+| **Seat-ACL devices over NoMachine** | Anything relying on `uaccess` ACLs fails remotely. Only the `input` group case is known and fixed |
 | **Two DDS profiles, one env var** | Which is active is ambiguous; a process missing the variable gets neither |
 | **Configs and sysctl outside the repo** | `allied_vision_config.xml` and `60-ros2-dds.conf` are not version-controlled |
 

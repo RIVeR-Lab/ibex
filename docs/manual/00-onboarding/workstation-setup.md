@@ -98,6 +98,26 @@ rebuild — a confusing failure mode that has cost time on this project.
 colcon discovers every package under `packages/` and resolves build order from the
 dependency graph. Build from `~/ibex_ws`, never from inside the repository.
 
+### Add the account to the `input` group
+
+**Required on any machine that runs teleoperation.** Without it the gamepad works from a
+local monitor and silently fails over NoMachine.
+
+```bash
+sudo usermod -aG input river
+groups            # confirm 'input' appears, after a NEW login
+```
+
+**The change takes effect only in a new login session.** Fully terminate a NoMachine
+session — disconnecting is not enough — or reboot. `newgrp input` works for testing in an
+existing shell.
+
+**Why:** `joy_node` reads the controller through SDL2, which opens `/dev/input/eventN`
+rather than `/dev/input/js0`. The event device is readable only by the `input` group or
+by the active local seat's ACL, and **a NoMachine session has no seat.** Full diagnosis on
+[shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md#the-gamepad-does-not-work-over-nomachine--fixed).
+
+
 To build one package:
 
 ```bash

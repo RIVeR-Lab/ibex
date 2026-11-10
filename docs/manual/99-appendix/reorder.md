@@ -93,6 +93,7 @@ most frequently reported failure in its vendor reviews.
 | Drive-by-wire controller | Kairos Pronto 4 Series 4 (**P4S4**) | Kairos Autonomi | [kairos-p4s4.md](../04-subsystems/motion/hardware/kairos-p4s4.md) |
 | Vehicle Interface Module | VIM | Kairos Autonomi | [vehicle-integration-module.md](../04-subsystems/motion/hardware/vehicle-integration-module.md) |
 | Operator Control Unit | Panasonic Toughbook **CF-53** | — | [kairos-p4s4-ocu.md](../04-subsystems/motion/hardware/kairos-p4s4-ocu.md) |
+| Gamepad | Logitech **F710** wireless, USB IDs `046d:c21f` / `c219` | Logitech | [shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md) |
 | Actuators | TODO(verify) | Kairos Autonomi | [actuators.md](../04-subsystems/motion/hardware/actuators.md) |
 
 > **The CF-53 is long discontinued.** It runs Shepherd, which is Windows-only and supplied
@@ -181,6 +182,7 @@ Warranty registration at `vatrerpower.com/pages/register-warranty`.
 | Fuses, 35 A and 25 A | Single points of failure with no redundancy |
 | Inrush thermistors | Wear items; three in series means any one failing opens the pre-charge path |
 | Insta360 lens guards | Highest and most exposed component on the vehicle |
+| Spare F710 and its USB receiver | The only teleoperation input. A lost receiver stops driving entirely |
 | VATRER LCD monitor | The only state-of-charge indication, and the most-reported failure |
 
 > TODO(verify): confirm what the lab actually stocks. None of this is recorded, and the

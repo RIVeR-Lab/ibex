@@ -236,95 +236,102 @@ The two scalers are separately configurable but currently set equal.
 
 ## Known issues & fixes
 
-### The beacon initializes to RUN instead of ESTOP — unresolved
+### The gamepad does not work over NoMachine — fixed
 
-`estop_beacon.py` sets its initial state in the constructor:
+**The worst property of this failure is that it is silent.** `joy_node` logs no error; it
+simply never opens the device and `/joy` never publishes.
 
-```python
-self._state = EStopState.RUN  # CHANGE TO ESTOP AFTER TESTING
+| Check | Local HDMI session | NoMachine session |
+| --- | --- | --- |
+| `joy_node` startup log | `Opened joystick: Logitech Gamepad F710` | **No line at all, and no error** |
+| `controller_teleop.py` GUI | Updates with input | Appears, never updates |
+| `ros2 topic hz /joy` | Publishing | **Nothing** |
+| `ros2 topic hz /kairos_values` | ~10 Hz | ~10 Hz |
+| `jstest /dev/input/js0` | Works | **Works** |
+
+**`/kairos_values` still running rules out ROS networking. `jstest` working rules out the
+controller and receiver.** Both are misleading, and disabling NoMachine's USB device
+sharing does not help either.
+
+**Cause: device permissions, and which device gets opened.**
+
+`joy_node` in ROS 2 Humble reads the controller through **SDL2, which opens the evdev
+device `/dev/input/eventN` — not `/dev/input/js0`.** The two have different permissions:
+
+| Device | Mode | Owner:group | Readable by `river`? |
+| --- | --- | --- | --- |
+| `/dev/input/js0` | `crw-rw-r--` | `root:input` | **Yes** — world-readable |
+| `/dev/input/event*` | `crw-rw----` | `root:input` | Only via the `input` group or a seat ACL |
+
+On a **local HDMI session**, `systemd-logind`'s `uaccess` rule grants a per-user ACL on
+input devices to the **active local seat**, so SDL can open the event device.
+
+**A NoMachine session is not a local seat** — `loginctl` shows its sessions with no seat
+assigned — so that ACL never applies. SDL cannot open the device, and `joy_node` waits
+without complaining.
+
+**That is also why `jstest` is misleading**: it reads `js0`, which anyone can read.
+
+**Fix, installed:**
+
+```bash
+sudo usermod -aG input river
 ```
 
-The comment is the author's own. The intended default is `ESTOP`; the shipped default is
-`RUN`.
+**The change takes effect only in a new login session.** Fully *terminate* the NoMachine
+session — disconnecting is not enough — and log in again, or reboot. To test in an
+existing shell, `newgrp input` first.
 
-**Consequence:** the moment the node starts, it begins broadcasting "run" to the P4S4 at
-1 Hz, before anybody has asked for anything. The fail-safe default was deliberately
-inverted for testing and never restored.
+**This is a per-machine setup step**, not a one-off. See
+[workstation-setup.md](../../../00-onboarding/workstation-setup.md).
 
-> TODO(verify): change it to `EStopState.ESTOP` and establish what has to happen at
-> startup to move it to `RUN` deliberately. That is the fix, but it is not a one-line
-> change in practice — whatever currently relies on the vehicle being live at launch will
-> stop working, which is presumably why it was inverted in the first place.
+> **Trade-off:** the `input` group can read every input device on Volta, keyboards and
+> mice included. Acceptable on a dedicated vehicle computer, broader than strictly needed.
+> A udev rule scoped to the F710 (`046d:c21f`/`c219`) would be narrower but needs a new
+> rule per device. Switching to `joy_linux`, which reads `js0` directly, would avoid the
+> permission question but changes the button and axis ordering and would need remapping.
 
-### The beacon broadcasts to 255.255.255.255 — unresolved
+### The F710's X/D switch must be on X
 
-```python
-# ESTOP_BROADCAST_ADDR = '192.168.200.255'
-ESTOP_BROADCAST_ADDR = '255.255.255.255'
+The gamepad has a physical **X / D** switch, and the two modes present entirely different
+devices:
+
+| Switch | Reports as | Buttons | Axes | Result |
+| --- | --- | --- | --- | --- |
+| **X** — XInput | `Logitech Gamepad F710` | 11 | 8 | **Correct** |
+| D — DirectInput | `Logitech Cordless RumblePad 2` | 12 | 6 | **`controller_teleop.py` crashes** |
+
+In D mode the node dies on:
+
+```
+AssertionError at  assert len(msg.buttons) == len(BUTTON) and len(msg.axes) == len(AXIS)
 ```
 
-The subnet-directed broadcast for the vehicle network is commented out in favour of the
-global broadcast address.
+**The reported device name identifies the mode**, which makes the startup log the quickest
+diagnosis. `Cordless RumblePad 2` means the switch is wrong.
 
-**Consequence:** a global broadcast is sent out one interface, chosen by the routing
-table. Volta has three interfaces, and the wireless one may hold the default route —
-see [04-subsystems/README.md](../../README.md). If it does, **the stop beacon is going out
-the wireless interface and never reaching the P4S4.**
+**Keep the switch on X.**
 
-> TODO(verify): this is the highest-priority item on this page. Confirm which interface
-> the beacon actually leaves on, with `ip route` and a packet capture on port 7001. If it
-> is not the `192.168.200.0/24` interface, the e-stop service does not work at all and
-> nobody would know, because nothing acknowledges the packets.
->
-> Restoring the commented-out subnet-directed address is the obvious fix.
+> TODO(verify): replace that assertion with a throttled warning that skips the message, so
+> a wrong layout degrades rather than killing the node.
 
-### The packet contains a hardcoded asset name — unverified
+> TODO(verify): **confirm teleop fails safe when joystick input stops.** If
+> `controller_teleop` dies mid-session, the expectation is that the deadman handles it —
+> releasing it returns actuators to neutral, and JAUS_IVN's "Park on Deadman Loss" option
+> exists. But a crashed node is not the same as a released deadman, and nothing records
+> which path actually applies. See [estop-chain.md](../../../01-safety/estop-chain.md) and
+> [jaus-ivn.md](jaus-ivn.md).
 
-The beacon packets embed the ASCII string `**DOZER_BASE**`.
+### Debugging launch-file tracebacks
 
-That is an asset identifier, and IBEX is not a dozer. It looks like a value inherited from
-Kairos example code or another vehicle.
+A node that crashes under `ros2 launch` can lose its traceback. Two ways to see it:
 
-> TODO(verify): establish whether the P4S4 filters on this identifier. If it does, and it
-> does not match what our P4S4 expects, the beacon is being ignored regardless of whether
-> it reaches the right network — the same failure as above, from a different cause, and
-> equally silent.
+```python
+Node(..., output='screen', emulate_tty=True)     # traceback in the launch terminal
+```
 
-### No acknowledgement, in either direction
-
-The beacon is fire-and-forget. It sends three copies of the packet each cycle, at 1 Hz,
-and never reads a reply.
-
-**Consequence:** there is no way to tell from Volta whether the P4S4 is receiving the
-beacon. All three failures above — wrong interface, wrong asset name, or a P4S4 that is
-simply not listening — look identical from the sending side, which is to say they look
-like nothing at all.
-
-> TODO(verify): does the P4S4 stop on loss of the beacon? The 1 Hz transmission and the
-> "Rule 1: transmit 1 per second" comment suggest the receiver expects a heartbeat and has
-> a timeout. If it does, a correctly-working beacon is load-bearing and killing the node
-> should stop the vehicle — which would be a useful property and is worth testing
-> deliberately, on chocks. If it does not, the beacon is advisory only.
-
-### Autonomous mode safety properties are unestablished
-
-The deadman requirement and return-to-neutral behaviour are known for teleoperation
-through `controller_teleop.py`. Whether they hold for any autonomous or path-playback path
-is unknown — and that is the case where nobody's hand is on a deadman.
-
-### The hardware interlocks are unaffected
-
-None of the above changes how the vehicle is stopped in practice. The
-[VIM](../hardware/vehicle-integration-module.md) is not addressable from ROS 2, so no
-software fault can arm it or prevent it disarming. That is why the vehicle is safe to
-operate while these are open. Cross-referenced from
-[estop-chain.md](../../../01-safety/estop-chain.md).
-
-### Autonomous mode safety properties are unestablished
-
-The deadman requirement and return-to-neutral behaviour are known for teleoperation
-through `controller_teleop.py`. Whether they hold for any autonomous or path-playback path
-is unknown — and that is the case where nobody's hand is on a deadman.
+Or wrap the node in `xterm -hold -e` to keep its own window open after it exits. The
+first is tidier and is what the launch files should use.
 
 ## Understanding the software
 

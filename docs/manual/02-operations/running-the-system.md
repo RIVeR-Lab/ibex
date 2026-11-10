@@ -287,6 +287,24 @@ Ouster alike.
   rather than the upstream default of 0.0, or KISS-ICP errors. See
   [ouster-ros.md](../04-subsystems/perception/software/ouster-ros.md).
 
+
+## If teleop does not respond
+
+Two causes account for every instance seen so far. Both are quick to tell apart from
+`joy_node`'s startup log.
+
+| What the log says | Cause | Fix |
+| --- | --- | --- |
+| **No `Opened joystick` line, no error** | `river` not in the `input` group; the event device is unreadable over NoMachine | `sudo usermod -aG input river`, then **a new login session** |
+| `Opened joystick: Logitech Cordless RumblePad 2` | The F710's switch is on **D**; `controller_teleop` crashes on an assertion | Move the switch to **X** |
+| `Opened joystick: Logitech Gamepad F710` | Correct | — |
+
+**`jstest /dev/input/js0` working proves nothing** in the first case — it reads a
+different device from the one `joy_node` uses.
+
+Full diagnosis:
+[shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md#the-gamepad-does-not-work-over-nomachine--fixed).
+
 ## Related
 
 - [power-on.md](power-on.md) and [power-off.md](power-off.md) — the sequences that bracket
