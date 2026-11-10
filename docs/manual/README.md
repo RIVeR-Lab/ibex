@@ -1,7 +1,7 @@
 ---
 status: draft
 owner: TODO(verify)
-last-verified: 2026-08-27
+last-verified: 2026-11-09
 ---
 
 # Ibex User Manual
@@ -37,13 +37,30 @@ pages for the reasoning behind them; subsystem pages do not restate procedures. 
 are following a procedure and want to know *why* a step exists, follow the link rather
 than expecting the explanation inline.
 
+## Current status
+
+Most of the manual is written. What is not:
+
+| | |
+| --- | --- |
+| **The system block diagram** | [04-subsystems/README.md](04-subsystems/README.md) has interconnect and processing diagrams. The combined view — sensors → compute → actuators with network segments **and** power rails overlaid — is still missing |
+| `04-subsystems/learning/` | Scoped but not written. See [Learning](#04-subsystems) |
+| `04-subsystems/simulation/` | Not written |
+| `99-appendix/vendor-accounts.md` | Not written |
+| `99-appendix/open-questions.md` | Not written |
+
+**Pages carry `TODO(verify)` markers** where a fact is unconfirmed. Those are not
+decoration — they mark things that were inferred, measured once, or taken from a note
+rather than from the system. Check `last-verified` before trusting a safety or operations
+page.
+
 ## Contents
 
 ### [00-onboarding/](00-onboarding/)
 | Page | What it covers |
 | --- | --- |
 | [day-one.md](00-onboarding/day-one.md) | Ordered reading path for a new researcher |
-| [workstation-setup.md](00-onboarding/workstation-setup.md) | Clone, submodule init, dependencies, `colcon build` |
+| [workstation-setup.md](00-onboarding/workstation-setup.md) | Clone, submodule init, dependencies, `colcon build`, host configuration |
 | [glossary.md](00-onboarding/glossary.md) | Acronyms, package names, vendor terms |
 | [ownership.md](00-onboarding/ownership.md) | Who owns which subsystem and who to ask |
 
@@ -61,7 +78,7 @@ than expecting the explanation inline.
 | --- | --- |
 | [power-on.md](02-operations/power-on.md) | Full power-on sequence |
 | [power-off.md](02-operations/power-off.md) | Full shutdown sequence |
-| [running-the-system.md](02-operations/running-the-system.md) | Bringing up the software stack and driving |
+| [running-the-system.md](02-operations/running-the-system.md) | Bringing up the software stack, driving, and teleop troubleshooting |
 | [data-collection.md](02-operations/data-collection.md) | Running a collection and the `metadata.yaml` convention |
 | [transport.md](02-operations/transport.md) | Trailer rental and moving Ibex to a test site |
 | [field-sites.md](02-operations/field-sites.md) | EXP high bay, Olin, and site-specific constraints |
@@ -78,59 +95,104 @@ Wolverine-only content. Nothing here is specific to autonomy.
 | [troubleshooting.md](03-base-vehicle/troubleshooting.md) | Diagnostic trees and dealer service contact |
 
 ### [04-subsystems/](04-subsystems/)
-Start with the [system block diagram](04-subsystems/README.md) before reading any
+Start with [04-subsystems/README.md](04-subsystems/README.md) before reading any
 individual subsystem.
 
-| Subsystem | Scope |
-| --- | --- |
-| [motion/](04-subsystems/motion/) | Drive-by-wire, teleoperation, operator control unit |
-| [perception/](04-subsystems/perception/) | Lidar, hyperspectral imagers, point spectrometers, cameras |
-| [state-estimation/](04-subsystems/state-estimation/) | Odometry, localization, frame estimation |
-| [power/](04-subsystems/power/) | Batteries, converters, inverter, distribution boxes |
-| [learning/](04-subsystems/learning/) | Planned; not yet implemented |
-| [simulation/](04-subsystems/simulation/) | Planned; not yet implemented |
+| Subsystem | Scope | Pages |
+| --- | --- | --- |
+| [motion/](04-subsystems/motion/) | Drive-by-wire, teleoperation, operator control unit | 4 hardware, 3 software |
+| [perception/](04-subsystems/perception/) | Lidar, hyperspectral imagers, point spectrometers, cameras | 8 hardware, 4 software |
+| [state-estimation/](04-subsystems/state-estimation/) | Lidar odometry and the GTSAM factor graph | 2 software, no hardware |
+| [power/](04-subsystems/power/) | Batteries, converters, inverter, distribution, soft-start | 1 hardware, no software |
+| [learning/](04-subsystems/learning/) | Material classification and traversability models | Scoped, not written |
+| [simulation/](04-subsystems/simulation/) | Planned; not yet implemented | Not written |
 
 Subsystems and code packages are not one-to-one. Perception spans several packages, some
-subsystems have no code at all, and `ibex_bringup` belongs to no subsystem — it is
-documented in [05-reference/launch-files.md](05-reference/launch-files.md).
+subsystems have no code at all, and two things belong to no subsystem: `ibex_bringup`,
+documented in [05-reference/launch-files.md](05-reference/launch-files.md), and Volta
+itself, documented in [05-reference/compute.md](05-reference/compute.md).
+
+**Motion is worth a note.** Three things configure or command the P4S4 and they are
+different: `shared_link_bridge` on Volta sends runtime commands, Shepherd on the OCU opens
+a VNC session into the controller, and JAUS_IVN runs on the P4S4 and holds its persistent
+configuration. See [motion/software/](04-subsystems/motion/software/).
 
 ### [05-reference/](05-reference/)
 Lookup tables. Skim once, return often.
 
 | Page | What it covers |
 | --- | --- |
-| [ros-graph.md](05-reference/ros-graph.md) | Topics, message types, publishers, subscribers, rates |
+| [ros-graph.md](05-reference/ros-graph.md) | Topics, message types, publishers, subscribers, QoS, rates |
 | [tf-frames.md](05-reference/tf-frames.md) | Frame tree, extrinsics, and where each is set |
 | [network.md](05-reference/network.md) | Address map for the on-vehicle network |
+| [compute.md](05-reference/compute.md) | Volta — specifications, storage, thermal limits, access |
 | [launch-files.md](05-reference/launch-files.md) | What each launch file brings up |
-| [bag-schema.md](05-reference/bag-schema.md) | Recorded topic set and bag layout |
+| [bag-schema.md](05-reference/bag-schema.md) | What to record, what it costs, and for how long |
 
 ### [99-appendix/](99-appendix/)
 | Page | What it covers |
 | --- | --- |
+| [reorder.md](99-appendix/reorder.md) | Part numbers, serials, and vendors for everything on the vehicle |
+| [bom.csv](99-appendix/bom.csv) | The dissertation parts list — the integration build |
 | [vendor-accounts.md](99-appendix/vendor-accounts.md) | Vendor portals and account names — no credentials |
-| [reorder.md](99-appendix/reorder.md) | Consumables and replacement parts, with part numbers |
 | [open-questions.md](99-appendix/open-questions.md) | Known unknowns and unresolved vendor questions |
+
+`reorder.md` and `bom.csv` cover almost disjoint sets and both are needed — the first is
+the vehicle's components, the second is what was bought to integrate them.
 
 ## Related material in this repository
 
 This manual is authored prose. It links into, and does not duplicate, the asset library
 that already exists alongside it:
 
-- `../hardware/` — vendor manuals, datasheets, CAD
-- `../place_in_home/`, `../place_in_opt/` — configuration files and vendor SDK trees
-- `../installer_archive/` — archived vendor installers
-- `../../command_sheet.md` — frequently used commands
+| Path | Contents |
+| --- | --- |
+| `../hardware/` | Vendor manuals, datasheets, CAD |
+| `../place_in_home/`, `../place_in_opt/` | Configuration files and vendor SDK trees |
+| `../installer_archive/` | Archived vendor installers |
+| `../ben_notes.md` | Working notes, including the derivation of empirically measured transforms |
+| `../../command_sheet.md` | Frequently used commands |
+
+Documents that are authoritative for their subject and should be committed alongside:
+
+- **IBEX System Power Budget** — the load inventory and endurance derivation behind
+  [04-subsystems/power/](04-subsystems/power/)
+- **Kairos Autonomi bulletins**, e.g. BUL-023 behind
+  [jaus-ivn.md](04-subsystems/motion/software/jaus-ivn.md)
+- **The traversability pipeline plan**, behind the Learning subsystem
 
 Vendor documentation is authoritative. Where this manual summarizes a vendor manual, the
 PDF wins and the manual page should link to it.
 
+### Configuration that lives outside the repository
+
+Three files are load-bearing and not version-controlled. They would be lost with the
+machine:
+
+| File | What it is |
+| --- | --- |
+| `~/allied_vision_config.xml` | Alvium camera settings |
+| `~/ibex_ws/config/fastdds_large_msgs.xml` | The DDS profile every node uses |
+| `/etc/sysctl.d/60-ros2-dds.conf` | Kernel buffer settings for large-message DDS |
+
+See [05-reference/compute.md](05-reference/compute.md).
+
 ## Contributing to this manual
 
 Read [_templates/README.md](_templates/README.md) before adding a page. It covers the three
-page types, where a given paragraph belongs, and the two page templates. Every page carries
-`status`, `owner`, and `last-verified` frontmatter; check `last-verified` before trusting a
-safety or operations page.
+page types, where a given paragraph belongs, and the templates:
+
+| Template | For |
+| --- | --- |
+| [software-page.md](_templates/software-page.md) | A ROS package or application |
+| [hardware-page.md](_templates/hardware-page.md) | A physical component |
+| [context-readme.md](_templates/context-readme.md) | A hyperspectral camera calibration context |
+
+Every page carries `status`, `owner`, and `last-verified` frontmatter.
+
+**Do not invent technical facts.** Topic names, parameters, pinouts, and torque values are
+either measured, read from source, or marked `TODO(verify)` with a note saying what to go
+and check.
 
 ## Credentials and physical security
 
