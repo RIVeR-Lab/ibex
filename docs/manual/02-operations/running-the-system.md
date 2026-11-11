@@ -288,6 +288,23 @@ Ouster alike.
   [ouster-ros.md](../04-subsystems/perception/software/ouster-ros.md).
 
 
+
+## Do not run nodes by hand without the DDS profile
+
+`system_bringup.launch.py` sets `FASTRTPS_DEFAULT_PROFILES_FILE` before starting anything,
+and **every node needs it.** Without it, Fast DDS falls back to a 512 kB shared-memory
+segment, large-message publishers drop to UDP over loopback, and best-effort topics
+silently lose whole messages — **about 60% of Ouster scans in testing.**
+
+A `ros2 run` from a terminal that never sourced `~/.bashrc`, or anything started by a
+script or service, gets the default. If you must run a node standalone:
+
+```bash
+export FASTRTPS_DEFAULT_PROFILES_FILE=$(ros2 pkg prefix ibex_bringup)/share/ibex_bringup/config/fastdds_large_msgs.xml
+```
+
+See [compute.md](../05-reference/compute.md).
+
 ## If teleop does not respond
 
 Two causes account for every instance seen so far. Both are quick to tell apart from

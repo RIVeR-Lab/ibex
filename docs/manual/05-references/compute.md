@@ -268,36 +268,36 @@ both would be lost with the machine:
 | File | What it is |
 | --- | --- |
 | `allied_vision_config.xml` | The Alvium camera's settings, passed to `vimbax_camera` |
-| `fastdds_ibex_config.xml` | A DDS profile — **possibly superseded, see below** |
 
-**A second DDS profile now exists**, in the repository rather than the home directory:
-`insta360_ros_driver/config/fastdds_large_msgs.xml`, which raises the Fast DDS
-shared-memory segment from 512 kB to **64 MB** so 12.4 MB decoded images do not fall back
-to fragmented UDP over loopback.
+**The DDS profile is now in the repository**, at
+`ibex_bringup/config/fastdds_large_msgs.xml`, and `system_bringup.launch.py` applies it
+with `SetEnvironmentVariable` before every include. That supersedes the earlier
+`~/.bashrc` export.
 
-`~/.bashrc` currently exports:
+### Why it matters, with a number
 
-```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=$HOME/ibex_ws/config/fastdds_large_msgs.xml
-```
+Fast DDS's default shared-memory segment is **512 kB**. An Ouster point cloud is ~3 MB and
+a decoded Insta360 frame ~12 MB, so neither fits.
 
-> TODO(verify): **two profiles, one environment variable.** Establish whether
-> `fastdds_ibex_config.xml` is still used, and point the export at the installed copy under
-> `install/insta360_ros_driver/share/` so terminals and launch files agree. Only one
-> profile can be active, and a process that does not see the variable gets neither — which
-> silently reintroduces the image drops.
+**Without the profile the publisher falls back to UDP over loopback, and best-effort
+topics silently lose whole messages — about 60% of Ouster scans in testing.**
 
-> TODO(verify): move both into package `config/` directories and point the launch files at
-> the installed share paths. See
-> [launch-files.md](launch-files.md#config-files).
+**This is the single most consequential environment variable on the vehicle**, and it only
+applies to processes started after it is set.
 
-Also here, by convention rather than necessity:
-
-| Path | Contents |
+| Started how | Gets the profile? |
 | --- | --- |
-| `~/ibex_ws/` | The workspace |
-| `~/ibex_ws/rosbag_library/` | Calibration bags — see [bag-schema.md](bag-schema.md) |
-| `~/imec_light_reference/context` | Where `light_reference.py` writes a new context |
+| Via `system_bringup.launch.py` or anything it includes | **Yes** |
+| `ros2 run` from a terminal that sourced `~/.bashrc` | Only if the export is still there |
+| A script, systemd service, or non-interactive shell | **No** — these do not load `~/.bashrc` |
+
+**A node run by hand outside the launch file silently loses most of its data.** That is
+the failure mode to remember.
+
+> TODO(verify): confirm the older copies are gone — `~/fastdds_ibex_config.xml`, the
+> `insta360_ros_driver/config/` copy, and the `~/.bashrc` export. One environment variable
+> with several candidate files is worse than none, because which applies depends on how the
+> process started.
 
 ## Host configuration outside the repository
 
@@ -326,7 +326,7 @@ because it applies to every socket on the machine.
 | **Measured power draw** | Budgeted flat at 330 W; the Drok displays the real figure |
 | **Enclosure temperature in summer** | 35 °C ceiling, never logged |
 | **Seat-ACL devices over NoMachine** | Anything relying on `uaccess` ACLs fails remotely. Only the `input` group case is known and fixed |
-| **Two DDS profiles, one env var** | Which is active is ambiguous; a process missing the variable gets neither |
+| **Old DDS profile copies** | Confirm `~/fastdds_ibex_config.xml`, the `insta360_ros_driver` copy, and the `~/.bashrc` export are gone |
 | **Configs and sysctl outside the repo** | `allied_vision_config.xml` and `60-ros2-dds.conf` are not version-controlled |
 
 ## Related

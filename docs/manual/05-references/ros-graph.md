@@ -11,6 +11,11 @@ Every topic on IBEX with its type, publisher, subscriber, and QoS.
 **Reference page.** Captured live with `system_bringup`, `hyper_drive`'s ambient-light
 pipeline, and `spectrometer_drivers` all running.
 
+> **RTAB-Map is not in this capture at all.** It was added afterwards, is launched
+> separately from `system_bringup`, and adds two nodes in the `/rtabmap` namespace plus
+> their topics. **Recapture with `rtabmap.launch.py` running** to fill them in — see
+> [rtabmap.md](../04-subsystems/state-estimation/software/rtabmap.md).
+
 > **Parts of this capture are stale.** The Insta360 pipeline was reworked on 2026-10-29,
 > after this was taken. `imu/data_raw` is now **RELIABLE depth 200** rather than best
 > effort, `imu_filter` no longer publishes to `/tf` (`publish_tf: false`), and its
@@ -288,6 +293,7 @@ flags that bag recording wants the opposite — relevant for
 | **Rates unmeasured — bench pass** | 12 topics, any time |
 | **Rates unmeasured — field pass** | `/gps_values`, `/kairos_values`, `/vehicle_control`. Needs outdoors, engine running, operator on the sticks |
 | **`graph_frontender` running twice** | Two estimators on one topic |
+| **RTAB-Map's topics uncaptured** | Two nodes and their topics missing entirely |
 | **`spectra_combiner` running twice** | Duplicate spectra into the correction |
 | **`kiss_icp_node` sim-time with no clock** | Low priority — stamps verified correct, but `now()` is pinned at zero |
 | **Nothing consumes `/graph_pose`** | The subsystem's output is unread |

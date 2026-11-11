@@ -6,6 +6,27 @@ last-verified: TODO(verify)
 
 # ibex_state
 
+
+> # ⚠ Not currently launched
+>
+> **Superseded by [RTAB-Map](rtabmap.md) on 27 October 2026.** `processing.launch.py`
+> carries the change as a comment:
+>
+> ```python
+> # DEPRECATED: 27 Oct 26, replaced with RTAB Map
+> # graph_frontender_launch = IncludeLaunchDescription(...)
+> ```
+>
+> Everything below describes software that is **in the repository and not in the running
+> stack.** The page is kept because the design reasoning is expensive to reconstruct and
+> because reviving it is a live option — RTAB-Map is lidar-only, and this is the only thing
+> on IBEX that ever fused two IMUs, GPS, and a vehicle motion model with explicit
+> covariance.
+>
+> **If you revive it**, three things below need fixing first: the unconnected control
+> input, the placeholder wheelbase, and the frame assumption — `kiss_icp`'s
+> `lidar_odom_frame` is now `kiss_odom`, not `odom`.
+
 The state estimation back end. Serves [State estimation](../README.md).
 
 A GTSAM factor graph that fuses lidar odometry, two IMUs, GPS, and vehicle dynamics into a

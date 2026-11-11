@@ -9,10 +9,23 @@ last-verified: TODO(verify)
 Where IBEX thinks it is. Two packages, no hardware of its own — it consumes sensors
 belonging to [Perception](../perception/) and [Motion](../motion/).
 
-| Package | Type | Role |
+| Package | Status | Role |
 | --- | --- | --- |
-| [`kiss-icp`](software/kiss-icp.md) | Submodule, tracks upstream | Lidar odometry front end |
-| [`ibex_state`](software/ibex-state.md) | In-repo | GTSAM factor graph back end |
+| [RTAB-Map](software/rtabmap.md) | **In use** — launch and config in `ibex_state` | Lidar SLAM: ICP odometry, loop closure, the `map` frame |
+| [`kiss-icp`](software/kiss-icp.md) | In use, secondary | Second odometry estimate, for comparison. Feeds nothing |
+| [`ibex_state`](software/ibex-state.md) | **Deprecated 27 Oct 2026** | GTSAM factor graph. Not launched |
+
+**RTAB-Map replaced the factor graph**, and that is the central fact about this subsystem
+now. `processing.launch.py` comments out `graph_frontender` and starts `rtabmap.launch.py`
+in its place.
+
+**What was gained:** loop closure and a global `map` frame, which the factor graph never
+had.
+
+**What was given up:** two IMUs, GPS, and a vehicle motion model fused with explicit
+covariance. RTAB-Map on IBEX is configured **lidar-only** — no inertial, no GNSS, no
+dynamics. Nothing currently bounds drift between loop closures, and there is no absolute
+position at all.
 
 ## The pipeline
 

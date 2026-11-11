@@ -26,7 +26,7 @@ ibex_bringup/system_bringup.launch.py
  │    └── ouster_ros/driver.launch.py
  ├── processing.launch.py         ibex_bringup
  │    ├── kiss_icp/odometry.launch.py
- │    └── ibex_state/graph_frontender.launch.py
+ │    └── ibex_state/rtabmap.launch.py        ← replaced graph_frontender
  └── control.launch.py            ibex_bringup
       └── shared_link_bridge/bringup.launch.py
 ```
@@ -40,13 +40,38 @@ ibex_bringup/system_bringup.launch.py
 ros2 launch ibex_bringup system_bringup.launch.py
 ```
 
+**It sets the Fast DDS profile before anything else**, and that ordering is load-bearing:
+
+```python
+ld.add_action(SetEnvironmentVariable("FASTRTPS_DEFAULT_PROFILES_FILE", fastdds_profile))
+```
+
+Environment changes apply only to processes started *after* them, and every included
+launch file inherits this one's environment — so the `SetEnvironmentVariable` must precede
+every include.
+
+| | |
+| --- | --- |
+| Argument | `fastdds_profile` |
+| Default | `ibex_bringup/config/fastdds_large_msgs.xml` |
+| Passed down to | `sensors.launch.py` explicitly |
+
+**Why it is here rather than in `~/.bashrc`:** what matters is the *publishing process's*
+environment, and a launch started from a script, a service, or a non-interactive shell
+never loads `~/.bashrc`.
+
+> **Without the profile, the publisher falls back to UDP loopback and best-effort topics
+> silently lose whole messages — about 60% of Ouster scans in testing.** Fast DDS's default
+> shared-memory segment is 512 kB; an Ouster cloud is ~3 MB and a decoded Insta360 frame
+> ~12 MB. See [compute.md](compute.md).
+
 Four sub-launches, added in order, **with no delays between them**:
 
 | Order | Sub-launch | Brings up |
 | --- | --- | --- |
 | 1 | `static_tf` | The frame tree |
 | 2 | `sensors` | Insta360, Ouster |
-| 3 | `processing` | KISS-ICP, `ibex_state` |
+| 3 | `processing` | KISS-ICP, **RTAB-Map** |
 | 4 | `control` | `shared_link_bridge` |
 
 **Nothing is staggered**, which works because the one node that needs ordering handles it
@@ -151,7 +176,16 @@ and where the unused processing outputs are disabled to stop packet drops. See
 | Sub-launch | Arguments |
 | --- | --- |
 | `kiss_icp/odometry.launch.py` | `topic`, `base_frame`, `lidar_odom_frame`, `visualize`, `config_file` |
-| `ibex_state/graph_frontender.launch.py` | none |
+| `ibex_state/rtabmap.launch.py` | none |
+
+**`graph_frontender` was replaced here on 27 October 2026** and is commented out in place:
+
+```python
+# DEPRECATED: 27 Oct 26, replaced with RTAB Map
+```
+
+See [ibex-state.md](../04-subsystems/state-estimation/software/ibex-state.md) and
+[rtabmap.md](../04-subsystems/state-estimation/software/rtabmap.md).
 
 **KISS-ICP's arguments are read from YAML at launch time**, not hardcoded:
 
@@ -240,10 +274,21 @@ launches, not one, and the second brings up its own copy of the spectrometer nod
 `ibsen_launch.py` — both streamers, the combiner, and the live plot. NIR is delayed 5 s
 behind VNIR to avoid the FT4222 enumeration race.
 
-### ibex_state — one
+### ibex_state — two
 
-`graph_frontender.launch.py` — one node, loading
-`ibex_state/config/graph_frontender_config.yaml`. No launch arguments.
+| File | Starts |
+| --- | --- |
+| `graph_frontender.launch.py` | One node, loading `graph_frontender_config.yaml`. No launch arguments |
+| `rtabmap.launch.py` | `icp_odometry` and `rtabmap` in the `/rtabmap` namespace, loading `rtabmap_config.yaml` |
+
+**`rtabmap.launch.py` is started by `system_bringup`**, through `processing.launch.py`.
+
+> **It passes `-d` to the `rtabmap` node, which deletes `~/.ros/rtabmap.db` on every
+> launch.** No map survives a restart — see
+> [rtabmap.md](../04-subsystems/state-estimation/software/rtabmap.md#the-database-is-wiped-every-launch).
+
+It also reads topic remaps out of its own YAML's `ibex_launch` section, because remaps
+cannot be ROS parameters.
 
 ### Submodule launch files
 
@@ -263,11 +308,18 @@ Included rather than run directly: `shared_link_bridge/bringup.launch.py`,
 | `kiss_icp_config.yaml` | `ibex_bringup` | KISS-ICP launch arguments |
 | `kiss_icp_processing_config.yaml` | `ibex_bringup` | KISS-ICP pipeline tuning |
 | `graph_frontender_config.yaml` | `ibex_state` | The entire factor-graph configuration |
+| `rtabmap_config.yaml` | `ibex_state` | RTAB-Map's ICP, odometry, and SLAM parameters |
+| `fastdds_large_msgs.xml` | `ibex_bringup` | **The DDS profile**, set by `system_bringup` before every include |
 | `allied_vision_config.xml` | **`~/`** | Alvium camera settings — **not in the repo** |
-| `fastdds_ibex_config.xml` | **`~/`** | DDS profile — **not in the repo** |
 
-> TODO(verify): the last two live in a home directory and would be lost with the machine.
-> Move them into package `config/` directories.
+**The DDS profile is now in the repository and applied by the launch file**, which
+supersedes the earlier `~/.bashrc` export and the copy under `insta360_ros_driver`. Only
+the Alvium settings remain outside version control.
+
+> TODO(verify): confirm whether `~/fastdds_ibex_config.xml`, the
+> `insta360_ros_driver/config/` copy, and the `~/.bashrc` export have all been removed.
+> **Multiple profiles with one environment variable is worse than none**, because which one
+> applies depends on how the process was started.
 
 ## Open items
 

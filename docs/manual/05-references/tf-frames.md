@@ -19,18 +19,26 @@ breaks when the tree is wrong, see the same page's diagnostics.
 ## The tree
 
 ```
-odom                                     ← KISS-ICP's world frame
- └── base_link                           ← rear axle centre, on the ground  [DYNAMIC]
-      └── front_bumper
-           └── sensor_rack
-                ├── os_mount             ← the 22.44° tilt is applied here
-                │    └── os_sensor       (identity)
-                │         ├── os_lidar   ← point clouds are stamped with this
-                │         └── os_imu
-                └── insta_mount
-                     └── insta_sensor    ← optical-frame convention
-                          └── insta_imu  ← ~77° yaw offset, empirically derived
+map                              ← rtabmap  [DYNAMIC, ~20 Hz]
+ └─ odom                         ← rtabmap icp_odometry  [DYNAMIC, ~10 Hz]
+     └─ base_link                ← rear axle centre, on the ground
+         ├─ kiss_odom            ← KISS-ICP, INVERTED  [DYNAMIC, ~10 Hz]
+         └─ front_bumper
+             └─ sensor_rack
+                 ├─ os_mount     ← the 22.44° tilt is applied here
+                 │    └─ os_sensor
+                 │         ├─ os_lidar
+                 │         └─ os_imu
+                 └─ insta_mount
+                      └─ insta_sensor
+                           └─ insta_imu
 ```
+
+**Three dynamic edges, not one.** RTAB-Map supplies `map → odom` and
+`odom → base_link`; KISS-ICP supplies `base_link → kiss_odom` — the **inverse** of its
+estimate, because `base_link` already has a parent and a frame can have only one. See
+[rtabmap.md](../04-subsystems/state-estimation/software/rtabmap.md#kiss-icp-now-publishes-the-inverse).
+
 
 Everything below `base_link` is static. The single dynamic edge is `odom → base_link`.
 
@@ -45,7 +53,9 @@ Ouster driver supplies.
 
 | Edge | Publisher | Type |
 | --- | --- | --- |
-| `odom → base_link` | **KISS-ICP** | Dynamic, `/tf` |
+| `map → odom` | **rtabmap** | Dynamic, `/tf`, ~20 Hz |
+| `odom → base_link` | **rtabmap `icp_odometry`** | Dynamic, `/tf`, ~10 Hz |
+| `base_link → kiss_odom` | **KISS-ICP**, inverted | Dynamic, `/tf` |
 | `base_link → front_bumper` | `ibex_bringup` | Static |
 | `front_bumper → sensor_rack` | `ibex_bringup` | Static |
 | `sensor_rack → os_mount` | `ibex_bringup` | Static |
@@ -294,14 +304,17 @@ it needs continuous publication to `/tf` as the base sweeps.
 **It would be the only moving sensor frame on the vehicle.** Nothing exists for it yet
 because the sensor has no driver.
 
-### There is no map frame
+### The map frame exists now
 
-`map` does not exist. `ibex_state` produces a globally-referenced estimate through
-`odom_offset` in `utm` rather than through a `map` frame, and nothing does loop closure or
-localization against a prior map.
+`map` is published by RTAB-Map, which **`system_bringup` starts** via
+`processing.launch.py`. So the tree always has this shape in normal operation.
 
-> Worth stating explicitly so nobody looks for it. The standard
-> `map → odom → base_link` convention is only half present.
+**`odom` means RTAB-Map's `icp_odometry` frame**, and KISS-ICP's estimate is `kiss_odom`.
+That is unambiguous because both always run together — but it is the reverse of what the
+manual said before 27 October 2026, when KISS-ICP owned `odom`.
+
+> TODO(verify): read `kiss_icp_config.yaml` and record `lidar_odom_frame` and the inversion
+> setting, so the inversion is documented at source rather than inferred from the tree.
 
 ## The frame-name trap
 

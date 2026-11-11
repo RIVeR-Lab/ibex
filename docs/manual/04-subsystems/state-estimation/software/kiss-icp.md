@@ -138,7 +138,7 @@ Launch arguments, from `ibex_bringup/config/kiss_icp_config.yaml`:
 | --- | --- |
 | `topic` | `/ouster/points` |
 | `base_frame` | `base_link` |
-| `lidar_odom_frame` | `odom` |
+| `lidar_odom_frame` | `odom` — **but see below** |
 | `visualize` | `false` |
 
 Pipeline parameters, from `ibex_bringup/config/kiss_icp_processing_config.yaml`:
