@@ -234,7 +234,101 @@ The two scalers are separately configurable but currently set equal.
 - The VIM armed, for commands to reach an actuator
 - A gamepad, for teleoperation
 
+## Changes, November 2026
+
+| Commit | What changed | Why |
+| --- | --- | --- |
+| Fix steering direction, match the ICD, add watchdog | Steering sign converted at the wire; commands clamped to ICD ranges; two-digit checksums; ICD frame layout (`N0\|D…`); explicit idempotent disconnect on shutdown; UDP sent before the ROS publish; unrecognised frames printed in full. Teleop: layout assert replaced by a warning; scales clamped | Stick right turned the wheels left; ~1–4% of frames had invalid checksums; disconnect frames were not reliably sent on Ctrl+C |
+| Add two-stage stop and enable interlocks | Watchdog stops in two stages and latches; enable refused with throttle up; teleop deadman release, joystick loss and arming rules; `teleop_xterm` launch argument | The P4S4 freezes the actuators when motion is disabled, so disabling motion alone can leave the throttle open |
+| Add read-only SharedLink query topic; fix connect list | `/sharedlink_query` and `/sharedlink_responses`; `premade_msgs.py` comma fix; `MW` deliberately not sent | Probing for steering encoder and motor current; `sys_thd` was being requested as `sys_thdMW` |
+
+> TODO(verify): add the three commit hashes.
+
+## Watchdog
+
+Two-stage, because the P4S4 freezes the actuators when motion is disabled:
+
+1. `/vehicle_control` silent for `command_timeout` while `veh_motion` is 1 → **throttle 0
+   and brake `timeout_brake`, motion still enabled.** Logs `Watchdog stop stage 1`.
+   Incoming commands ignored.
+2. After `stop_hold_time` → motion and enable off. Logs `Watchdog stop stage 2`.
+3. **Latched.** Commands with `veh_motion` 1 are ignored — logs `Watchdog stop is latched` —
+   until one arrives with `veh_motion` 0, i.e. the deadman released.
+
+**Enable interlock.** A `veh_motion` 0 → 1 transition is refused while `veh_throttle` is
+above `enable_throttle_max`, whatever sends it. Logs `Motion enable refused`.
+
+The bridge logs a `Safety:` line at startup with these values. Verified on chocks,
+November 2026 — see [estop-chain.md](../../../01-safety/estop-chain.md).
+
+## Conventions
+
+**Steering sign.** The ROS side follows REP 103 (positive = left), matching the joystick and
+Nav2. **Kairos uses positive = right.** The bridge negates `joy_steer` on the way out and
+`steerang` on the way in. `/outbound_msgs` shows the Kairos convention.
+
+**Clamping.** Every outbound value is clamped to its ICD range before sending:
+`joy_steer` ±`steer_limit`, `veh_throttle` 0–`throttle_limit`, `veh_brake` 0–100,
+`veh_shift` 0–3.
+
+**Units** are on
+[sharedlink-protocol.md](../../../05-reference/sharedlink-protocol.md).
+
+## Probing shared variables
+
+```bash
+ros2 topic pub --once /sharedlink_query std_msgs/msg/String "{data: 'vehicle_bat'}"
+ros2 topic pub -r 5 /sharedlink_query std_msgs/msg/String "{data: 'enc2,ang,Hb6'}"
+ros2 topic echo /sharedlink_responses
+```
+
+Each name is sent as a bare named query, with no data field, **so the topic cannot write a
+variable or send a pipe command.** Named replies are published but not printed, so polling
+does not flood the console.
+
+> **Query a known variable such as `vehicle_bat` first**, to prove the path works before
+> trusting a zero.
+
 ## Known issues & fixes
+
+### Steering inverted — fixed
+
+Stick right turned the wheels left. The ROS joystick reports stick-right as negative, and
+Kairos treats negative as a left turn. Fixed by `invert_steering`; confirmed on chocks.
+
+### One-digit checksums — fixed
+
+`get_checksum` used `:X`, so sums under 0x10 produced one digit — 4.4% and 0.8% of frames in
+two bags. **Kairos ignores frames with a bad checksum.** Now `:02X`.
+
+### Empty field after `N0` — fixed
+
+Frames were sent as `N0||D…`. Kairos tolerated it, but the ICD layout is `N0|D…`.
+
+### Disconnect not sent on shutdown — fixed
+
+Disconnect lived in `__del__`, which Python does not guarantee to run on Ctrl+C, and the ROS
+publish ran before the UDP send — so a failed publish during shutdown blocked it. `main()`
+now calls `shutdown()` explicitly.
+
+### `sys_thd` never requested — fixed
+
+A missing comma in `premade_msgs.py` joined `"MW"` onto the vehicle → OCU list, so the last
+variable was requested as `sys_thdMW` and `MW` was never sent. Fixed; `MW` is deliberately
+left out, so the lists are still not saved on the P4S4.
+
+### Last command held forever — fixed
+
+With no command timeout, a dead teleop node left its last throttle and steering in force.
+Replaced by the two-stage watchdog.
+
+### `/vehicle_control` stall — open
+
+In `steering_wheel_sweep_02`, `/vehicle_control` paused 291 ms while `/joy` never paused more
+than 102 ms. Teleop publishes once per `/joy` message, so a teleop stall is a command stall.
+
+> TODO(verify): cause. CPU load under NoMachine is one candidate.
+
 
 ### The gamepad does not work over NoMachine — fixed
 

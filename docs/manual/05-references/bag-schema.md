@@ -12,9 +12,57 @@ What to record, what it costs, and what a bag must contain to be usable later.
 [data-collection.md](../02-operations/data-collection.md); for the topics themselves see
 [ros-graph.md](ros-graph.md).
 
-> **Rates below are estimates**, not measurements — the `ros2 topic hz` pass has not been
-> run. See [ros-graph.md](ros-graph.md#todoverify-rates-are-not-yet-measured). Sizes are
-> computed from message definitions and are solid.
+> **Superseded in part.** Rates and data rates were measured in November 2026 and
+> `record_field.sh` now handles recording. **Use
+> [bag-recording-and-analysis.md](../02-operations/bag-recording-and-analysis.md) as the
+> procedure**; this page remains the reference for what each topic costs and what a bag
+> must contain to be usable.
+
+## Use record_field.sh
+
+Recording is scripted. It excludes large data that can be regenerated on playback and
+applies the QoS override that keeps the bursty Insta360 IMU from losing samples.
+
+```bash
+record_field.sh --teleop <bag_name>     # teleop sessions
+record_field.sh <bag_name>              # manual drives
+```
+
+Flags: `--teleop`, `--hyperspectral`, `--keep-maps`, `--keep-visualizer`. Full detail,
+including the Ctrl+C rule and the naming convention, is in
+[bag-recording-and-analysis.md](../02-operations/bag-recording-and-analysis.md).
+
+## Measured data rates
+
+| Profile | Measured | Per hour |
+| --- | --- | --- |
+| Sensors and Alvium | **~81 MB/s** | ~290 GB |
+| With the hyperspectral system | **~194 MB/s** | ~700 GB |
+
+**These supersede the estimates below**, which were computed from message definitions. The
+sensors-and-Alvium figure is higher than the old "navigation profile" estimate because
+`record_field.sh` records everything except regenerable data, not a hand-picked subset.
+
+### Measured topic rates
+
+| Topic | Rate |
+| --- | --- |
+| `/kairos_values`, `/gps_values` | **9.9 Hz** — one ~1.1 s gap per bag so far |
+| `/joy` | 17–20 Hz |
+| `/vehicle_control` | Follows `/joy`, one command per message |
+| `/outbound_msgs` | 21 Hz |
+| `/ouster/imu` | 100 Hz |
+| `/insta360/imu/data` | 94–100 Hz, **in bursts** |
+| `/insta360/imu/data_raw` | ~490 Hz |
+| `/kiss/odometry`, `/rtabmap/odom` | 10 Hz |
+
+> **Time the Insta360 IMU by header stamp, not receive time.** Median gap is 0 ms because
+> samples arrive in bursts — the same reason `ros2 topic hz` is misleading on that topic.
+
+> TODO(verify): `/insta360/imu/data` measures 94–100 Hz here, while
+> [insta360-ros-driver.md](../04-subsystems/perception/software/insta360-ros-driver.md)
+> records the Madgwick filter at ~66 Hz with 100 ms gaps. Either the filter improved or the
+> two were measured differently. Reconcile.
 
 ## You cannot record everything
 
@@ -43,8 +91,16 @@ impossibility.
 **The decision that matters is cubes or no cubes.** Everything else is rounding error by
 comparison.
 
-> TODO(verify): record Volta's available storage and where bags are written. Nothing in the
-> manual says, and at these rates it is the binding constraint on session length.
+Bags are written to `~/ibex_ws/rosbag_library/` on Volta and copied to an external
+**Expansion** drive afterwards. At 81 MB/s a one-hour session is ~290 GB against Volta's
+2.0 TB free — about 7 hours of space, so battery binds first at that profile. With the
+hyperspectral system it is ~2.9 hours and **storage binds first.**
+
+> **Verify every copy.** A copy of `steering_wheel_sweep_02` on the Expansion drive was
+> missing its last ~28 seconds — 84% of messages readable, "no message indices found" —
+> while the original on Volta was complete. Use `rsync --checksum` or compare `sha256sum`,
+> and recover with `mcap doctor` / `mcap recover`. See
+> [bag-recording-and-analysis.md](../02-operations/bag-recording-and-analysis.md).
 
 ## Always record these
 

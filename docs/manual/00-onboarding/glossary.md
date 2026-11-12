@@ -32,7 +32,7 @@ abbreviations from Kairos documentation; those are tracked in
 | --- | --- |
 | **P4S4** | Kairos Pronto 4 Series 4. The drive-by-wire system that actuates throttle, brake, steering, and transmission. See [kairos-p4s4.md](../04-subsystems/motion/hardware/kairos-p4s4.md). |
 | **Kairos Autonomi** | Manufacturer of the P4S4 and the Shepherd application. |
-| **OCU** | Operator Control Unit. The external rugged laptop the operator uses to test, teleoperate or oversee the P4S4 when not using RIVEr-Volta. A Windows Machine provided by Kairos Autonomi to go with the P4S4. |
+| **OCU** | Operator Control Unit. The rugged laptop the operator uses to teleoperate or oversee IBEX. |
 | **Shepherd** | The Kairos vendor application for the OCU. Runs on the rugged laptop, not on Volta, and is **not currently in IBEX's control path** — `shared_link_bridge` is used in its place. Not in our repository. See [shepherd.md](../04-subsystems/motion/software/shepherd.md). |
 | **SharedLink** / **djSharedLink** | The Kairos communication protocol between the P4S4 and a controlling computer. Wrapped for ROS 2 by `shared_link_bridge`. |
 | **Deadman** | A control that must be held for drive input to be accepted. Releasing it stops commanded motion. |
@@ -45,6 +45,14 @@ abbreviations from Kairos documentation; those are tracked in
 | **IVN** | Referenced in Kairos documentation as a communication configuration. TODO(verify). |
 | **VAK** | Named in Kairos documentation as ASI's Mobius vehicle control unit executable. TODO(verify). |
 | **djDRIVEWB**, **djMimic**, **djBasis** | Kairos software components named in the Shepherd overview. TODO(verify). |
+| Arming (teleop) | After `controller_teleop` starts, the deadman must be seen released once before it can enable motion |
+| Enable interlock | Motion may only be enabled with the throttle near zero, because the P4S4 applies stored commands the moment motion comes on |
+| Freeze on disable | P4S4 behaviour: with motion disabled, actuators stay where they are and new commands are stored, not acted on |
+| `joy_steer` | The steering command the bridge actually uses: steering-wheel degrees, ±450. ROS side positive = left; on the wire positive = right |
+| Latch (watchdog) | After a watchdog stop, the bridge ignores enable commands until the deadman is released |
+| Two-stage stop | Throttle 0 and brake with motion still enabled, held for `stop_hold_time`, then motion disabled |
+| Watchdog (bridge) | Stops the vehicle if `/vehicle_control` goes silent for 0.5 s while motion is enabled |
+
 
 ## Compute and networking
 
@@ -56,6 +64,11 @@ abbreviations from Kairos documentation; those are tracked in
 | **mDNS** | Multicast DNS. Resolves `.local` hostnames without a DNS server — how the Ouster is addressed reliably despite a shifting IP. |
 | **MTU** | Maximum transmission unit. Packet size limit on an interface. |
 | **Jumbo frames** | An MTU above the standard 1500 bytes, typically 9000. Relevant to high-rate point cloud traffic. |
+| Delta compression | SharedLink sends only changed values; an unchanged field is a bare `D`. A full frame is sent at least once per second |
+| Named query | A SharedLink frame `[:BA\|Q<name>\|Cxx]` that asks Kairos for one variable's value; the reply is `[:AB\|R<name>\|D<value>\|Cxx]` |
+| SharedLink | Kairos's UDP protocol for keeping two lists of shared variables in sync. See [sharedlink-protocol.md](../05-reference/sharedlink-protocol.md) |
+| Shared variable (SV) | A named, typed value in a Kairos system, synced between computers by SharedLink |
+
 
 ## Sensing
 
@@ -165,6 +178,8 @@ Frame names appearing throughout the manual. The tree and its extrinsics live in
 | `sensor_rack` | The roof-mounted structure carrying the sensors. |
 | `os_mount` | The Ouster's mounting frame. Carries the lidar's tilt. |
 | `os_sensor` / `os_lidar` | Frames the Ouster reports points in. Tilted — do not read raw z as height above ground. |
+| REP 103 | ROS convention for axes and rotation: positive turn = left (counter-clockwise) |
+
 
 ## Electrical and mechanical
 

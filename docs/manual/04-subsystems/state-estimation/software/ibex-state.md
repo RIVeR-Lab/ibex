@@ -490,11 +490,18 @@ And the dynamics factor is **ten times tighter than the lidar factor** — 0.005
 custom back end over a SLAM package rests on having a control-driven backbone; without
 `(v, δ)` that backbone is a tight stationary prior fighting every other sensor.
 
-> TODO(verify): **connect it.** The source is already on the vehicle:
-> `shared_link_bridge` publishes `/kairos_values`, which carries the vehicle state the P4S4
-> reports — speed and steering angle among it. This node already depends on that package.
-> See
-> [shared-link-bridge.md](../../motion/software/shared-link-bridge.md).
+> **Correction, November 2026.** An earlier version of this page said `/kairos_values`
+> carries the speed and steering the bicycle model needs. **It does not.**
+>
+> | Needed | Available from Kairos |
+> | --- | --- |
+> | `δ` — steering angle | ✅ `steerang`, but it is the **command**, not a measurement. That is what a bicycle model wants anyway |
+> | `v` — velocity | ❌ **Nothing.** `veh_throttle` is a pedal position, `rpm` is not engine speed, and the only true speed is GPS velocity at 10 Hz |
+>
+> So `δ` can be connected directly. **`v` cannot** — it would have to come from the
+> estimator's own lidar odometry, or from a throttle-to-speed map that does not exist. See
+> [kairos-p4s4.md](../../motion/hardware/kairos-p4s4.md) and
+> [sharedlink-protocol.md](../../../05-reference/sharedlink-protocol.md).
 >
 > Until then, consider either loosening `dyn_noise_std` in x, y, and yaw to something that
 > does not assert stationarity, or setting `enable_rate`/the dynamics factor aside so the

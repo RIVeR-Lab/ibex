@@ -133,10 +133,15 @@ mapping as implemented:
 | Gear selection | D-pad — right D-pad scrolls shift options |
 | Enable | Right bumper — the deadman, held |
 
-**Releasing the deadman returns the actuators to neutral.** They do not hold their last
+****CORRECTED, November 2026.** Disabling motion leaves the actuators **where they are**;
+stored commands apply when motion comes back on. Teleop and the bridge therefore stop in
+two stages — release throttle and brake with motion still enabled, then disable. See
+[estop-chain.md](../../../01-safety/estop-chain.md).** They do not hold their last
 commanded position.
 
-Telemetry coming back includes brake percentage, throttle percentage, and steering angle.
+**CORRECTED, November 2026.** The ICD defines the brake and throttle values as
+**commanded** positions, and on IBEX the steering angle tracks the command exactly. None of
+them confirms an actuator moved. See [kairos-p4s4.md](kairos-p4s4.md).
 Topic names belong in [ros-graph.md](../../../05-reference/ros-graph.md).
 
 > TODO(verify): the input scalers in `controller_teleop.py` are separately configurable for
@@ -174,7 +179,76 @@ actuator.
 > limits set, and where those live. A transmission actuator with mis-set limits either
 > fails to reach a gear or drives past it.
 
+## Command ranges
+
+| Control | Range |
+| --- | --- |
+| Steering | ±450 steering-wheel degrees — teleop uses ±400 |
+| Throttle | 0–1000 (= 0–100.0 %) |
+| Brake | 0–100 % |
+| Gear | 0 Park, 1 Reverse, 2 Neutral, 3 Drive |
+
+### Teleop mapping
+
+| Control | Input |
+| --- | --- |
+| Throttle and brake | Left stick, up / down |
+| Steering | Right stick |
+| Gear selection | TUI Shift page — D-pad to navigate, A to select |
+| Enable | Right bumper, held. Must be released once after teleop starts, and only engages with the throttle stick centred |
+
+Full detail on [controller-teleop.md](../software/controller-teleop.md).
+
+## Gear mapping — Park is Neutral
+
+Confirmed in the second standstill test, November 2026:
+
+| Kairos command | `veh_shift` | **IBEX gear** |
+| --- | --- | --- |
+| Park | 0 | **Neutral** |
+| Reverse | 1 | Reverse |
+| Neutral | 2 | Neutral |
+| Drive | 3 | High |
+
+> **A "parked" IBEX can roll.** Use the parking brake or chocks, and any autonomy stack must
+> hold the vehicle with the brake rather than with Park.
+
+**Low is not used.** Reaching it needs a specific engine speed, and Kairos applies the brake
+before every shift, so Low is not reachable through Kairos in this setup. All driving is in
+High.
+
+`veh_gear` reports the gear **actually engaged** — 0 shifting, 1 Park, 2 Reverse, 3 Neutral,
+4 Drive — and is the value to confirm shifts against. It is the only actuator with real
+feedback.
+
+> TODO(verify): add the confirmed actuator position for each gear from the test notes.
+
 ## Known issues & fixes
+
+### Throttle linkage travel — repair in progress
+
+The throttle attachment does not push the pedal far enough. In the first teleop drive
+(`ibex_first_run`, November 2026) commanded throttle sat at 1000 for long stretches with
+little or no motion, and top speed was about 2.4 m/s.
+
+**Data recorded before the repair is not valid for throttle calibration.** Retest after the
+fix. See [test-log-2026-11.md](../../../99-appendix/test-log-2026-11.md).
+
+### Throttle held open — mitigated
+
+The mechanism is the actuator freeze: disabling motion leaves the throttle where it is.
+Mitigated by the two-stage stop. See [kairos-p4s4.md](kairos-p4s4.md).
+
+### No steering feedback
+
+The P4S4 reports no measured steering angle — `steerang` is the command. Direction is
+confirmed correct after the November 2026 bridge fix: stick right turns the wheels right.
+
+> TODO(verify): whether ±400 already reaches full lock. If not, raise toward 450 in steps.
+> The steering limit switches (`limit_r`, `limit_l`), if the P4S4 exposes them, would answer
+> this directly — see
+> [sharedlink-protocol.md](../../../05-reference/sharedlink-protocol.md).
+
 
 ### Back-drivability — status unknown
 

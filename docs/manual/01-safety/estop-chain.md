@@ -370,6 +370,76 @@ disarm at the VIM before any hands go near a linkage.**
 Record results in the inventory, set `last-verified`, and narrow the banner at the top of
 this page.
 
+
+## What disabling motion does
+
+Disabling motion — `veh_motion` and `veh_enable` to 0, the deadman released — **does not
+return the actuators to neutral.** The P4S4 stops acting on commands and leaves every
+actuator where it is. Commands sent while disabled are stored and applied as soon as motion
+is re-enabled.
+
+**So disabling motion on its own is not a stop: a throttle that was open stays open.**
+
+## Stop methods, in order of authority
+
+| Method | What it does | Depends on software? |
+| --- | --- | --- |
+| **Key off and VIM disarm** | Engine off; actuators unpowered | **No — the primary stop** |
+| Main e-stop on the Kairos box | Cuts P4S4 power | No |
+| Deadman release | Two-stage stop in `controller_teleop` | Yes |
+| Joystick loss, 0.5 s | Two-stage stop in `controller_teleop` | Yes |
+| Teleop node dies, 0.5 s | Two-stage stop in the bridge watchdog, then latched | Yes |
+| Kairos PAUSE / ESTOP via the beacon | TODO(verify): Part G result | Yes |
+
+**Do not grab the controls as a stop.** Manual takeover is unreliable while the VIM is
+armed — see
+[kairos-p4s4.md](../04-subsystems/motion/hardware/kairos-p4s4.md).
+
+## The two-stage stop
+
+Every software stop runs in two stages:
+
+1. **Throttle 0 and brake** (100 by default), **with motion still enabled** so the P4S4
+   acts on them. Held for `stop_hold_time`.
+2. **Motion disabled.** The brake stays pressed.
+
+Interlocks around it:
+
+- Motion only enables with the throttle near zero — stick ≤ 5 % in teleop,
+  `veh_throttle` ≤ 50 in the bridge — so a stored throttle is never applied on re-enable.
+- After a teleop restart, the deadman must be released once before it can enable.
+- After a watchdog stop, the bridge ignores enable commands until the deadman is released.
+
+Details: [controller-teleop.md](../04-subsystems/motion/software/controller-teleop.md) and
+[shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md).
+
+### Verification status
+
+Verified on chocks with the engine off, November 2026:
+
+| Part | Tests | Result |
+| --- | --- | --- |
+| A | New code running, steering direction | **Pass** |
+| B | Actuator timing measured, hold time set | Done — TODO(verify): record the values |
+| C | Deadman stop: throttle applied, steering off centre, re-press during hold, brake applied | **Pass** |
+| D | Arming after restart, throttle-up enable, bridge interlock | **Pass** |
+| E | Watchdog stop, latch, recovery, no false stops | **Pass** |
+| F | Receiver unplugged, wrong layout | **Pass** |
+| G | Kairos PAUSE (informational) | TODO(verify): record what happened |
+| H | Rolling stops at walking pace | **Pending** — at the testing ground |
+
+Still to record: throttle release time, brake apply time, the `stop_hold_time` chosen, and
+the Part H stopping distances.
+
+## Operating rules from testing
+
+- **Park is Neutral on IBEX.** Set the parking brake or chock the wheels whenever it is
+  parked — see
+  [actuators.md](../04-subsystems/motion/hardware/actuators.md#gear-mapping--park-is-neutral).
+- **Keep hands and legs clear of the steering and footwell while the VIM is armed**, engine
+  running or not.
+- Partial throttle only during testing; cap it with the bridge's `throttle_limit` if needed.
+
 ## Related
 
 - [README.md](README.md) — the safety rules this page supports

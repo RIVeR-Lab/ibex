@@ -115,15 +115,39 @@ most of the time.
 
 ### Data structure / output format
 
-The P4S4 exchanges state and commands over the SharedLink protocol. Telemetry returning
-from the vehicle includes speed, engine RPM, fuel level, battery voltage, brake and
-throttle percentage, steering angle, gear state, GPS fix and satellite count, enabled
-state, system temperature, and link quality.
+**All 28 telemetry fields** are published in `/kairos_values`, and the seven GPS fields
+again in `/gps_values`. The field list, units, and command ranges are on
+[sharedlink-protocol.md](../../../05-reference/sharedlink-protocol.md).
 
-> TODO(verify): confirm which of those fields `shared_link_bridge` actually exposes as ROS
-> 2 topics. The list above is what the Shepherd interface displays, which is the vendor's
-> view of the protocol rather than evidence of what our bridge publishes. Topic names
-> belong in [ros-graph.md](../../../05-reference/ros-graph.md).
+#### What the telemetry can and cannot tell you
+
+| Telemetry | Measured? |
+| --- | --- |
+| GPS position, heading, velocity | ✅ Yes — low rate, coarse at walking pace |
+| `veh_gear` — gear achieved | ✅ **The only actuator with real feedback** |
+| `vehicle_bat`, `key_on`, `veh_estop`, `fuel` | ✅ Yes |
+| `bbrake`, `fbrake`, `throttle` | ❌ Commanded positions, per the ICD |
+| `steerang` | ❌ Tracks the command exactly on IBEX |
+| `rpm` | ❌ Not engine speed on IBEX |
+
+**Rate: 9.9 Hz** (median period 100.5 ms), matching the Primer's nominal 100 ms. The Primer
+says the rate is configurable per system.
+
+> TODO(verify): how the telemetry rate is configured, with Kairos.
+
+### Commands
+
+| Command | Range | Notes |
+| --- | --- | --- |
+| Steering — `joy_steer` | ±450 steering-wheel degrees | **Positive = right.** Teleop limits itself to ±400 |
+| Throttle — `veh_throttle` | 0–1000 (= 0–100.0 %) | |
+| Brake — `veh_brake` | 0–100 % | |
+| Gear — `veh_shift` | 0 Park, 1 Reverse, 2 Neutral, 3 Drive | Gear changes need teleop mode and the deadman held |
+
+Shepherd's P4S4 tab displays maximum throttle and speed settings held inside Kairos — its
+documentation shows an example capped at 20 mph and 26 % throttle.
+
+> TODO(verify): IBEX's values. **A Kairos-side cap would mean 1000 is not full pedal.**
 
 ## Networking
 
@@ -175,6 +199,57 @@ installation and after anything that disturbs the steering actuator — not ever
 See [kairos-p4s4-ocu.md](kairos-p4s4-ocu.md).
 
 ## Known issues & fixes
+
+### Disabling motion freezes the actuators — mitigated
+
+When `veh_motion` and `veh_enable` go to 0, **the P4S4 stops acting on commands and leaves
+every actuator where it is.** Commands sent while disabled are stored and applied the moment
+motion is re-enabled.
+
+Evidence, November 2026:
+
+- Releasing the deadman with the throttle applied left the throttle down until the deadman
+  was pressed again and a brake command sent.
+- A watchdog brake command sent with motion disabled did nothing until teleop re-enabled
+  motion — and then the brake engaged.
+
+**This contradicts the earlier statement that releasing the deadman returns the actuators to
+neutral**, and is the likely mechanism behind the throttle-held-open issue. Mitigated in
+software by the two-stage stop — see
+[estop-chain.md](../../../01-safety/estop-chain.md).
+
+Whether the actuators can be moved by hand when disarmed is a separate, still-open question.
+
+### `steerang` is not steering feedback
+
+On IBEX `steerang` matches the steering command exactly: the same ±400 range, correlation
+**1.00**, and it reaches each new command within one telemetry sample — about 100 ms — of a
+400° step. **A ring-and-chain drive cannot move that fast.** Kairos's own example stream
+shows a real angle ramping over about a second.
+
+**Treat `steerang` as the command.** Probing for a steering encoder (`enc2`, `ang`) is in
+progress — see
+[sharedlink-protocol.md](../../../05-reference/sharedlink-protocol.md).
+
+### `rpm` is not engine speed
+
+Values 0–480 in steps of 8, the same stopped (mean 21) as driving (mean 25), correlation
+with vehicle speed **0.06**. The tachometer input is not connected or configured.
+
+> TODO(verify): with Kairos, which input feeds `rpm` and its pulses-per-revolution setting.
+
+### Session lingers after an unclean disconnect — fixed in the bridge
+
+If the bridge stopped without sending its disconnect frames, the P4S4 kept the old session.
+On the next bringup the enable indicator stayed off and the bridge could not connect.
+Connecting through the OCU cleared it. **The bridge now disconnects explicitly on
+shutdown.**
+
+### Telemetry gap of about 1.1 s — open
+
+Every bag so far has one ~1.1 s gap in telemetry.
+
+> TODO(verify): whether it occurs only at startup.
 
 ### GPS failure — resolved
 

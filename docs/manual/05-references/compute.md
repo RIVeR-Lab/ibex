@@ -87,6 +87,15 @@ chassis has three M.2 slots.
 > mounted or not. If a second drive is fitted and unmounted, mounting it and writing bags
 > there solves two problems at once — see below.
 
+### Bags go to Volta, then to an external drive
+
+Recording writes to `~/ibex_ws/rosbag_library/`, and bags are copied afterwards to an
+external **Expansion** drive at `/media/<user>/Expansion/ibex_bags/`.
+
+**Verify every copy.** One copy of `steering_wheel_sweep_02` on that drive was missing its
+last ~28 seconds while the original was complete. See
+[bag-recording-and-analysis.md](../02-operations/bag-recording-and-analysis.md).
+
 ### Recording to the root filesystem is the wrong default
 
 Bags currently have nowhere else to go, and **filling `/` breaks the operating system**,
@@ -98,14 +107,14 @@ not just the recording. With 2.0 TB free and 43% already used, that is not a rem
 
 | Profile | Rate | Space for | Battery | **Binds on** |
 | --- | --- | --- | --- | --- |
-| Navigation | 32 MB/s | 17.4 h | 5 h | Battery |
-| Spectral | 177 MB/s | **3.1 h** | 5 h | **Storage** |
-| Everything | 400 MB/s | **1.4 h** | 5 h | **Storage** |
+| Sensors + Alvium — **measured** | 81 MB/s | **6.9 h** | 5 h | Battery |
+| With hyperspectral — **measured** | 194 MB/s | **2.9 h** | 5 h | **Storage** |
 
-**A spectral collection session runs out of disk before it runs out of battery**, on the
-current 2.0 TB. That inverts the planning assumption in
-[bag-schema.md](bag-schema.md) and [field-sites.md](../02-operations/field-sites.md),
-which both plan around the ~5 hour battery figure.
+**A hyperspectral session runs out of disk before it runs out of battery**, on the current
+2.0 TB — about 2.9 hours against a ~5 hour pack. Without the hyperspectral system, storage
+gives about 6.9 hours and the battery binds first.
+
+Both figures are measured, November 2026, and supersede the earlier estimates.
 
 With the full 8 TB available the picture flips back — 12.6 h and 5.6 h respectively — and
 battery becomes the constraint again. **So resolving the storage question is not

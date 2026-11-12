@@ -126,9 +126,9 @@ implications:
 Gamepad → shared_link_bridge (Volta) → SharedLink UDP → router → P4S4 (.220) → VIM → actuators
 ```
 
-> TODO(verify): the SharedLink UDP port. The e-stop beacon uses 7001; the command path's
-> port is unrecorded. See
-> [shared-link-bridge.md](../04-subsystems/motion/software/shared-link-bridge.md).
+**SharedLink uses UDP 4000 outbound and 4220 inbound on the bridge.** Full frame format,
+connect sequence, and the variable lists are in
+[sharedlink-protocol.md](sharedlink-protocol.md).
 
 **The router and the P4S4 share a power bank.** Cutting the Kairos box takes both down
 together, so there is no state where powered actuators are waiting on a dead link — see
@@ -136,18 +136,27 @@ together, so there is no state where powered actuators are waiting on a dead lin
 
 ### The e-stop beacon broadcasts to the wrong address
 
-`estop_beacon.py` sends 40-byte UDP packets to **`255.255.255.255` port 7001** at 1 Hz,
-three copies per cycle.
+`estop_beacon.py` sends 40-byte UDP packets to **`255.255.255.255`** at 1 Hz, three copies
+per cycle, and immediately on a state change.
+
+> **Port 7000 or 7001?** Kairos's ICD assigns the e-stop beacon **both** — the ports table
+> in [sharedlink-protocol.md](sharedlink-protocol.md) lists 7000 and 7001 — and the
+> November 2026 analysis cites `255.255.255.255:7000` as matching the ICD, while the code
+> was recorded as using 7001. **Confirm which the running code sends to.** Either is within
+> the ICD's range, so this is a documentation question rather than a fault.
 
 **`255.255.255.255` is the global broadcast address**, and the kernel sends it out whichever
 interface holds the default route. On a dual-homed host that may be `wlo1` — the lab
 network — rather than the router segment where the P4S4 lives.
 
-> TODO(verify): confirm which interface actually carries the beacon, and change it to the
-> router segment's directed broadcast (`192.168.200.255`) or to the P4S4's address
-> directly. **This is a safety path with no acknowledgement**, so a misdirected beacon
-> fails silently. Recorded in full on
-> [estop-chain.md](../01-safety/estop-chain.md).
+> TODO(verify): confirm which interface actually carries the beacon. A directed broadcast
+> to `192.168.200.255`, or the P4S4's address directly, would remove the ambiguity.
+>
+> **There is now an argument that it does arrive.** Kairos's receiver rules say the vehicle
+> enters e-stop after 3 seconds without a beacon message. **The vehicle runs**, so either
+> the beacon is reaching the P4S4 or the P4S4 does not enforce that rule. Testing which
+> would settle it — see
+> [sharedlink-protocol.md](sharedlink-protocol.md#e-stop-beacon).
 
 ## The lab wireless segment
 
@@ -202,11 +211,13 @@ documentation recommends CycloneDDS, so this is a trap worth knowing about. See
 | --- | --- | --- |
 | 58293 | UDP | Ouster lidar data → Volta |
 | 59631 | UDP | Ouster IMU data → Volta |
-| 7001 | UDP | E-stop beacon broadcast |
+| **7000, 7001** | UDP | E-stop beacon broadcast — the ICD assigns both |
+| 4000 | UDP | SharedLink, OCU transmit |
+| 4220 | UDP | SharedLink, bridge receive |
+| 1901, 1902 | UDP | Kairos ID beacon |
 | 22 | TCP | SSH to Volta |
 | 4000 | TCP | NoMachine, default |
 | 80 | TCP | Router admin |
-| TODO(verify) | UDP | SharedLink command path |
 | TODO(verify) | — | SICK picoScan |
 
 ## Known issues

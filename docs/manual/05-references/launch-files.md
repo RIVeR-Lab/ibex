@@ -209,7 +209,16 @@ So `ibex_bringup/config/` holds two KISS-ICP configs with different jobs:
 
 | Sub-launch | Arguments |
 | --- | --- |
-| `shared_link_bridge/bringup.launch.py` | **none — see below** |
+| `shared_link_bridge/bringup.launch.py` | `teleop_xterm` (default `true`) |
+
+`bringup.launch.py` starts `joy_node`, `estop_beacon`, the bridge, and `controller_teleop`.
+**`teleop_xterm:=false` leaves teleop out** so it can run in its own terminal — needed for
+SSH or tmux sessions, since the curses TUI requires a real terminal:
+
+```bash
+ros2 launch shared_link_bridge bringup.launch.py teleop_xterm:=false   # pane 1
+ros2 run shared_link_bridge controller_teleop.py                       # pane 2
+```
 
 The file is a thin wrapper, described in its own comment as "the single seam for the
 vehicle-control subsystem" where future Kairos launch files get added.
@@ -225,6 +234,9 @@ vehicle-control subsystem" where future Kairos launch files get added.
 
 with the note: *"Uncomment each once the matching `DeclareLaunchArgument` exists in
 shared_link_bridge's launch file."*
+
+**`teleop_xterm` was added in November 2026; `estop_initial_state` was not.** So the second
+override is still blocked, and the first can now be uncommented.
 
 **`estop_initial_state: "ESTOP"` is the fix for a known defect.** `estop_beacon.py`
 initializes to RUN rather than ESTOP — the author's own comment flags it — so the vehicle's

@@ -197,10 +197,12 @@ currently has no downstream user.
 | --- | --- | --- | --- | --- |
 | `/joy` | `sensor_msgs/Joy` | `joy_node` | `controller_teleop` | |
 | `/joy/set_feedback` | `sensor_msgs/JoyFeedback` | **none** | `joy_node` | |
-| `/vehicle_control` | `shared_link_bridge/VehicleControl` | `controller_teleop` | `shared_link_bridge_node` | rate: **field only** |
-| `/kairos_values` | `shared_link_bridge/KairosValues` | `shared_link_bridge_node` | `controller_teleop` | rate: **field only** |
-| `/gps_values` | `shared_link_bridge/GpsValues` | `shared_link_bridge_node` | `graph_frontender` ×2 | rate: **field only** |
-| `/outbound_msgs` | `std_msgs/String` | `shared_link_bridge_node` | **none** | |
+| `/vehicle_control` | `shared_link_bridge/VehicleControl` | `controller_teleop` | `shared_link_bridge_node` | Follows `/joy`, 17–20 Hz |
+| `/kairos_values` | `shared_link_bridge/KairosValues` | `shared_link_bridge_node` | `controller_teleop` | **9.9 Hz measured** |
+| `/gps_values` | `shared_link_bridge/GpsValues` | `shared_link_bridge_node` | — (`graph_frontender` deprecated) | **9.9 Hz measured** |
+| `/outbound_msgs` | `std_msgs/String` | `shared_link_bridge_node` | **none** | 21 Hz — every frame sent |
+| `/sharedlink_query` | `std_msgs/String` | — | `shared_link_bridge_node` | **New Nov 2026** — read-only variable queries |
+| `/sharedlink_responses` | `std_msgs/String` | `shared_link_bridge_node` | — | **New Nov 2026** — raw replies |
 
 The command chain is clean: `joy_node → /joy → controller_teleop → /vehicle_control →
 shared_link_bridge_node → P4S4`.
@@ -291,7 +293,7 @@ flags that bag recording wants the opposite — relevant for
 | Item | |
 | --- | --- |
 | **Rates unmeasured — bench pass** | 12 topics, any time |
-| **Rates unmeasured — field pass** | `/gps_values`, `/kairos_values`, `/vehicle_control`. Needs outdoors, engine running, operator on the sticks |
+| ~~Rates unmeasured — field pass~~ | **Done November 2026** — see [bag-schema.md](bag-schema.md#measured-topic-rates) |
 | **`graph_frontender` running twice** | Two estimators on one topic |
 | **RTAB-Map's topics uncaptured** | Two nodes and their topics missing entirely |
 | **`spectra_combiner` running twice** | Duplicate spectra into the correction |
