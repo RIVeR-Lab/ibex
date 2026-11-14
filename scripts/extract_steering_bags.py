@@ -13,6 +13,13 @@ For each bag directory given, writes to OUT_DIR/<bag_name>/:
   steering_holds.csv       every stretch where the steering command held
                            steady, and how fast the angle was still moving
                            at the end of it (position vs rate control)
+  sharedlink_values.csv    named query replies from /sharedlink_responses,
+                           one row per reply (t, name, value, null)
+  sharedlink_values_wide.csv  the same, one column per variable
+  sharedlink_lists.txt     list and other non-value replies (N?, L?, A?)
+  sharedlink_values.png    each queried variable that changes, over time
+  steering_holds_enc2.csv  and enc2_scatter.png, when enc2 was polled
+                           during steering commands
   summary.txt              topic rates and largest gaps, the sign of each hop
                            in the steering chain, command-to-telemetry lag,
                            value ranges, outbound checksum check
@@ -50,6 +57,8 @@ DEFAULT_TOPICS = {
     '/ouster/imu': 'ouster_imu',
     '/insta360/imu/data': 'insta360_imu',
     '/kiss/odometry': 'kiss_odometry',
+    '/sharedlink_query': 'sharedlink_query',
+    '/sharedlink_responses': 'sharedlink_responses',
 }
 
 # Order of the D fields in an outbound N0 frame (SharedLinkOutbound in
@@ -116,6 +125,28 @@ def parse_outbound(frame):
     return row
 
 
+def parse_response(frame):
+    """Parse one frame from /sharedlink_responses. Named query replies look like
+    '[:AB|R<name>|D<value>|C<xx>]'; a bare 'D' (null) means the variable doesn't exist."""
+    body = frame.strip()
+    row = {'raw': body}
+    if body.startswith('[') and body.endswith(']'):
+        body = body[1:-1]
+    parts = body.split('|')
+    tag = parts[1] if len(parts) > 1 else ''
+    if tag.startswith('R') and len(parts) > 2 and parts[2].startswith('D'):
+        raw_value = parts[2][1:]
+        row.update(kind='reply', name=tag[1:], null=raw_value == '')
+        try:
+            row['value'] = float(raw_value) if raw_value else math.nan
+        except ValueError:
+            row['value'] = math.nan   # string variables
+            row['text'] = raw_value
+    else:
+        row.update(kind=tag or 'unknown', name='', null=False, value=math.nan)
+    return row
+
+
 def read_bag(bag_path, topics, storage_id):
     """Return {topic: DataFrame} for each requested topic present in the bag."""
     import rosbag2_py
@@ -146,7 +177,12 @@ def read_bag(bag_path, topics, storage_id):
     while reader.has_next():
         topic, data, t_ns = reader.read_next()
         msg = deserialize_message(data, msg_types[topic])
-        row = parse_outbound(msg.data) if topic == '/outbound_msgs' else flatten(msg)
+        if topic == '/outbound_msgs':
+            row = parse_outbound(msg.data)
+        elif topic == '/sharedlink_responses':
+            row = parse_response(msg.data)
+        else:
+            row = flatten(msg)
         if 'header.stamp.sec' in row:
             row['header_t'] = row['header.stamp.sec'] + row['header.stamp.nanosec'] * 1e-9
         row['t_ns'] = t_ns
@@ -249,7 +285,7 @@ def lag_estimate(t_cmd, cmd, t_meas, meas):
     return best_lag, (best_r if np.isfinite(best_lag) else math.nan)
 
 
-def find_holds(t, cmd, meas):
+def find_holds(t, cmd, meas, meas_name='steerang'):
     """Stretches where the command stayed within 1% of its range for at least
     HOLD_MIN_S, with the angle's rate of change over the last HOLD_TAIL_S."""
     t, cmd, meas = (np.asarray(x, float) for x in (t, cmd, meas))
@@ -269,10 +305,45 @@ def find_holds(t, cmd, meas):
             span = ts[tail][-1] - ts[tail][0]
             rate = (ms[tail][-1] - ms[tail][0]) / span if span > 0 else 0.0
             holds.append({'t_start': t[start], 'duration_s': dur, 'command': cmd[start],
-                          'steerang_start': ms[0], 'steerang_end': ms[-1],
-                          'steerang_rate_at_end_per_s': rate})
+                          f'{meas_name}_start': ms[0], f'{meas_name}_end': ms[-1],
+                          f'{meas_name}_rate_at_end_per_s': rate})
         start = i
     return pd.DataFrame(holds)
+
+
+def named_replies(frames):
+    """Named query replies as a long table: t, name, value, null."""
+    resp = frames.get('/sharedlink_responses')
+    if resp is None or 'kind' not in resp:
+        return pd.DataFrame(columns=['t', 'name', 'value', 'null'])
+    cols = ['t', 'name', 'value', 'null'] + (['text'] if 'text' in resp else [])
+    return resp.loc[resp['kind'] == 'reply', cols].reset_index(drop=True)
+
+
+def query_summary(frames):
+    """One line per queried variable: does it exist, and does it change?"""
+    replies = named_replies(frames)
+    if replies.empty:
+        return []
+    lines = ['', 'Shared-variable queries (/sharedlink_responses)',
+             f'  {"name":16s} {"replies":>7s}  verdict']
+    for name, g in replies.groupby('name', sort=False):
+        vals = g['value'].dropna()
+        if g['null'].all():
+            verdict = "null (bare D): doesn't exist"
+        elif vals.empty:
+            verdict = 'text value: ' + str(g.get('text', pd.Series([''])).iloc[-1])
+        elif vals.nunique() == 1:
+            v = vals.iloc[0]
+            verdict = (f'constant {v:g}' + ('. Zero: exists, or check while it should change'
+                                            if v == 0 else ''))
+        else:
+            verdict = (f'varies {vals.min():g} .. {vals.max():g} '
+                       f'(std {vals.std():.3g}, {vals.nunique()} distinct values)')
+        if g['null'].any() and not g['null'].all():
+            verdict += '; some replies null'
+        lines.append(f'  {name:16s} {len(g):7d}  {verdict}')
+    return lines
 
 
 def steering_analysis(frames, steer_axis=None):
@@ -314,6 +385,10 @@ def steering_analysis(frames, steer_axis=None):
         out_cols = [c for c in n0.columns if c.startswith('out_')]
         n0[out_cols] = n0[out_cols].ffill()  # bare D = unchanged since last frame
         attach(n0, ['out_joy_steer', 'out_veh_steer', 'out_veh_motion'])
+    enc2 = named_replies(frames)
+    enc2 = enc2[(enc2['name'] == 'enc2') & ~enc2['null']]
+    if len(enc2):
+        attach(enc2[['t', 'value']].rename(columns={'value': 'enc2'}), ['enc2'])
     res['aligned'] = aligned
 
     lines.append('  Sign of each hop (r = correlation; negative = inverted):')
@@ -325,6 +400,7 @@ def steering_analysis(frames, steer_axis=None):
         ('sent veh_steer -> /kairos_values.steerang', 'out_veh_steer', 'steerang'),
         ('sent joy_steer -> /kairos_values.steerang', 'out_joy_steer', 'steerang'),
         ('joystick axis -> /kairos_values.steerang', 'joy_axis', 'steerang'),
+        ('sent joy_steer -> enc2 (polled)', 'out_joy_steer', 'enc2'),
     ]
     for label, a, b in hops:
         if a in aligned and b in aligned:
@@ -354,10 +430,20 @@ def steering_analysis(frames, steer_axis=None):
                          'toward the stop = rate-commanded. See steering_holds.csv.')
         else:
             lines.append('  No steady holds found.')
+        if 'enc2' in sources:
+            t_e, v_e = sources['enc2']
+            lag, r = lag_estimate(t_c, v_c, t_e, v_e)
+            lines.append(f'  Lag {cmd_col} -> enc2: {lag * 1e3:.0f} ms (r = {r:+.2f}). Includes '
+                         'the query round trip; resolution is the polling period.')
+            holds_e = find_holds(aligned['t'], aligned[cmd_col], aligned['enc2'], 'enc2')
+            res['holds_enc2'] = holds_e
+            if len(holds_e):
+                lines.append(f'  enc2 at each hold, and how fast it was still moving at the end: '
+                             f'see steering_holds_enc2.csv ({len(holds_e)} holds).')
 
     lines.append('  Ranges (min .. max):')
     for c in ('joy_axis', 'vc_joy_steer', 'vc_veh_steer', 'out_joy_steer', 'out_veh_steer',
-              'steerang'):
+              'steerang', 'enc2'):
         if c in aligned:
             s = aligned[c].dropna()
             if len(s):
@@ -422,6 +508,43 @@ def plot_steering(out_dir, frames, res, title):
         plt.close(fig)
 
 
+def plot_queries(out_dir, frames, res, title):
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return
+    replies = named_replies(frames)
+    varying = [n for n, g in replies.groupby('name', sort=False)
+               if g['value'].dropna().nunique() > 1]
+    if varying:
+        fig, ax = plt.subplots(len(varying), 1, sharex=True, squeeze=False,
+                               figsize=(12, 2.4 * len(varying) + 1))
+        for a, name in zip(ax[:, 0], varying):
+            g = replies[replies['name'] == name]
+            a.plot(g['t'], g['value'], '.-', lw=0.8, ms=3)
+            a.set_ylabel(name)
+            a.grid(alpha=0.3)
+        ax[-1, 0].set_xlabel('time since first message (s)')
+        fig.suptitle(f'{title}: queried shared variables that change')
+        fig.tight_layout()
+        fig.savefig(out_dir / 'sharedlink_values.png', dpi=120)
+        plt.close(fig)
+    aligned, cmd_col = res.get('aligned'), res.get('cmd_col')
+    if aligned is not None and cmd_col and 'enc2' in aligned:
+        fig, a = plt.subplots(figsize=(6.5, 6))
+        sc = a.scatter(aligned[cmd_col], aligned['enc2'], c=aligned['t'], s=6)
+        fig.colorbar(sc, label='time (s)')
+        a.set_xlabel(cmd_col.replace('out_', 'sent ').replace('vc_', '/vehicle_control.'))
+        a.set_ylabel('enc2 (counts)')
+        a.set_title(f'{title}: command vs steering encoder')
+        a.grid(alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(out_dir / 'enc2_scatter.png', dpi=120)
+        plt.close(fig)
+
+
 # ------------------------------------------------------------------------ main
 
 def process(frames, out_dir, title, topics, steer_axis):
@@ -429,13 +552,29 @@ def process(frames, out_dir, title, topics, steer_axis):
         df.to_csv(out_dir / f'{topics.get(topic, topic.strip("/").replace("/", "_"))}.csv',
                   index=False)
     lines = topic_rates(frames) + checksum_check(frames.get('/outbound_msgs'))
+    lines += query_summary(frames)
+    replies = named_replies(frames)
+    if len(replies):
+        replies.to_csv(out_dir / 'sharedlink_values.csv', index=False)
+        wide = (replies.pivot_table(index='t', columns='name', values='value', aggfunc='last')
+                .ffill().reset_index())
+        wide.to_csv(out_dir / 'sharedlink_values_wide.csv', index=False)
+    resp = frames.get('/sharedlink_responses')
+    if resp is not None and 'kind' in resp:
+        other = resp[resp['kind'] != 'reply']
+        if len(other):
+            (out_dir / 'sharedlink_lists.txt').write_text(
+                '\n'.join(f'{t:.3f}  {raw}' for t, raw in zip(other['t'], other['raw'])) + '\n')
     res = steering_analysis(frames, steer_axis)
     lines += res['lines']
     if res['aligned'] is not None:
         res['aligned'].to_csv(out_dir / 'steering_aligned.csv', index=False)
         if len(res['holds']):
             res['holds'].to_csv(out_dir / 'steering_holds.csv', index=False)
+        if len(res.get('holds_enc2', [])):
+            res['holds_enc2'].to_csv(out_dir / 'steering_holds_enc2.csv', index=False)
         plot_steering(out_dir, frames, res, title)
+    plot_queries(out_dir, frames, res, title)
     return lines
 
 
