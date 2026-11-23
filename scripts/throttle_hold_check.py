@@ -13,6 +13,8 @@ For every held throttle level in each bag it reports:
   - distance covered during the hold
 then a summary by gear and level across all bags, and plots.
 
+--labels FILE (bag, gear, direction CSV, as for throttle_map.py) overrides the gear in the name.
+
 Usage:
   python3 extract_steering_bags.py ~/ibex_ws/rosbag_library/throttlehold_*/ -o ~/ibex_analysis
   python3 throttle_hold_check.py 'throttlehold_*' [--root ~/ibex_analysis]
@@ -36,13 +38,21 @@ STEADY_WINDOW_S = 1.0   # s at the end of the hold checked for a steady speed
 STEADY_ACCEL = 0.15     # m/s2; slower change than this counts as steady
 
 
+GEAR_LABELS = {}   # bag name -> gear, from --labels; overrides the name
+
+
 def gear_from_name(name):
-    """Gear from a bag name: throttle_<high|rev>_..., or the first runs' forward / backward."""
+    """Gear for a bag: from --labels if listed there, else from the name
+    (throttle_<high|rev>_..., or the first runs' forward / backward)."""
+    if name in GEAR_LABELS:
+        return GEAR_LABELS[name]
     tok = name.lower().replace('-', '_').split('_')
-    if 'high' in tok:
-        return 'High'
+    # 'reverse' always means the gear and wins over 'high' (some Reverse-gear bags were
+    # named throttle_hold_high_reverse_...)
     if 'rev' in tok or 'reverse' in tok:
         return 'Reverse'
+    if 'high' in tok:
+        return 'High'
     if any(t.startswith('forward') for t in tok):
         return 'High (forward)'
     if any(t.startswith('backward') for t in tok):
@@ -153,7 +163,17 @@ def main():
     ap = argparse.ArgumentParser(description='First-pass throttle map from throttle-hold bags.')
     ap.add_argument('bags', nargs='+', help="extracted bag names; patterns like 'throttlehold_*' work")
     ap.add_argument('--root', default='~/ibex_analysis')
+    ap.add_argument('--labels', default=None,
+                    help='CSV with columns bag, gear (high|reverse), direction; overrides names')
     args = ap.parse_args()
+    if args.labels:
+        lab = pd.read_csv(Path(args.labels).expanduser(), dtype=str).fillna('')
+        lab.columns = [c.strip().lower() for c in lab.columns]
+        for r in lab.itertuples():
+            g = r.gear.strip().lower()
+            GEAR_LABELS[r.bag.strip().rstrip('/')] = ('High' if g in ('high', 'h') else
+                                                      'Reverse' if g in ('reverse', 'rev', 'r') else '?')
+        print(f'Labels: {len(GEAR_LABELS)} bags from {args.labels}')
     root = Path(args.root).expanduser()
     dirs = []
     for b in args.bags:

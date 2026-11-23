@@ -11,9 +11,14 @@ The same idea as Autoware's accel_brake_map_calibrator.
 
 Gear and direction come from the bag name, because the transmission is under manual
 control during these runs and Kairos's veh_shift / veh_gear only show its default (Park).
-Names: throttle_<high|rev>_<level>_<a|b>_<rep>, where a and b are the two directions
-along the stretch. The first runs' names still work: 'forward' = High, driven one way;
+Names: throttle_<high|rev>_<level>_<a|b>_<rep> or throttle_hold_<gear>_<direction>_<level>_<rep>,
+where a and b are the two directions along the stretch. 'reverse' (or 'rev') in a name
+always means the gear, even next to 'high'. The first runs' names still work: 'forward' = High, driven one way;
 'backward' = Reverse, driven the other way.
+
+When names don't say it (or say it wrongly), a labels file overrides them: --labels FILE,
+a CSV with columns bag, gear (high | reverse) and direction (a | b), one row per bag.
+--write-labels FILE writes one with the gear and direction guessed from each name, to edit.
 
 When a gear has runs in both directions, the straight-line model gets a direction term:
 accel = b0 + b_thr*throttle + b_v*speed + b_dir*dir (dir = +1 for a, -1 for b). b_dir is
@@ -89,13 +94,40 @@ MAX_AXES_ERR_DEG = 2.0      # convention check must match the end-of-bag gravity
 MAX_PLAUSIBLE_GRADE = 0.15  # a bag whose median grade exceeds 15 % is not corrected
 
 
+LABELS = {}   # bag name -> (gear, direction), from --labels; overrides the name
+
+
+def load_labels(path):
+    df = pd.read_csv(Path(path).expanduser(), dtype=str).fillna('')
+    missing = {'bag', 'gear', 'direction'} - set(c.strip().lower() for c in df.columns)
+    if missing:
+        raise SystemExit(f'{path}: needs columns bag, gear, direction (missing {sorted(missing)})')
+    df.columns = [c.strip().lower() for c in df.columns]
+    out = {}
+    for r in df.itertuples():
+        g = r.gear.strip().lower()
+        gear = 'High' if g in ('high', 'h') else 'Reverse' if g in ('reverse', 'rev', 'r') else '?'
+        dr = r.direction.strip().lower()
+        direction = 1 if dr in ('a', '+1', '1') else -1 if dr in ('b', '-1') else 0
+        if gear == '?' or direction == 0:
+            print(f'  labels: {r.bag}: gear {r.gear!r} / direction {r.direction!r} not understood '
+                  "(use high|reverse and a|b)")
+        out[r.bag.strip().rstrip('/')] = (gear, direction)
+    return out
+
+
 def parse_name(name):
-    """(gear, direction) from a bag name; direction +1 = a / forward, -1 = b / backward."""
+    """(gear, direction) for a bag: from --labels if listed there, else from the name.
+    direction +1 = a / forward, -1 = b / backward, 0 = unknown."""
+    if name in LABELS:
+        return LABELS[name]
     tok = name.lower().replace('-', '_').split('_')
-    if 'high' in tok:
-        gear = 'High'
-    elif 'rev' in tok or 'reverse' in tok:
+    # 'reverse' always means the gear and wins over 'high': some Reverse-gear bags were
+    # named throttle_hold_high_reverse_...
+    if 'rev' in tok or 'reverse' in tok:
         gear = 'Reverse'
+    elif 'high' in tok:
+        gear = 'High'
     elif any(t.startswith('forward') for t in tok):
         gear = 'High (forward)'
     elif any(t.startswith('backward') for t in tok):
@@ -311,6 +343,10 @@ def main():
     ap.add_argument('--imu-mount-pitch-deg', type=float, default=IBEX_MOUNT_PITCH_DEG,
                     help='nose-down pitch of os_imu relative to base_link (default 22.44, tf-frames.md)')
     ap.add_argument('--no-slope', action='store_true', help='skip the slope correction')
+    ap.add_argument('--labels', default=None,
+                    help='CSV with columns bag, gear (high|reverse), direction (a|b); overrides names')
+    ap.add_argument('--write-labels', default=None, metavar='FILE',
+                    help='write a labels CSV with the gear and direction guessed from each name, then stop')
     ap.add_argument('--grade', type=float, default=None,
                     help="measured uniform grade of the stretch in percent, positive = uphill in "
                          "direction a (or 'forward'); replaces the IMU levelling")
@@ -322,6 +358,21 @@ def main():
         dirs += sorted(p for p in root.glob(b) if p.is_dir()) if any(c in b for c in '*?[') \
             else [root / b]
 
+    if args.labels:
+        LABELS.update(load_labels(args.labels))
+        unlisted = [d.name for d in dirs if d.name not in LABELS]
+        print(f'Labels: {len(LABELS)} bags from {args.labels}'
+              + (f'; not listed, read from the name: {", ".join(unlisted)}' if unlisted else ''))
+    if args.write_labels:
+        rows = []
+        for d in dirs:
+            gear, direction = parse_name(d.name)
+            rows.append({'bag': d.name, 'gear': {'High': 'high', 'Reverse': 'reverse'}.get(
+                gear.split(' ')[0], '?'), 'direction': {1: 'a', -1: 'b'}.get(direction, '?')})
+        pd.DataFrame(rows).to_csv(Path(args.write_labels).expanduser(), index=False)
+        print(f'Wrote {args.write_labels} ({len(rows)} bags). Correct any gear or direction, '
+              "replacing every '?', then rerun with --labels.")
+        return
     dirs = [d for d in dirs if (d / 'vehicle_control.csv').exists()
             and (d / 'kiss_odometry.csv').exists()]
     use_imu = not args.no_slope and args.grade is None
@@ -379,7 +430,9 @@ def main():
                   f'{100 * bad:+.0f}% is implausible')
             parts.append(s)
             continue
-        line = f'  {d.name}: {len(s)} steady samples'
+        gear, direction = parse_name(d.name)
+        line = (f'  {d.name} [{gear}, dir {dict([(1, "a"), (-1, "b")]).get(direction, "?")}]: '
+                f'{len(s)} steady samples')
         if use_imu:
             if lv is None:
                 line += '; no slope correction (no ouster_imu.csv, or not at rest at the start)'
