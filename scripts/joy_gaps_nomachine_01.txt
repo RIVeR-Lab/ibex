@@ -1,0 +1,18 @@
+
+/joy: 10872 msgs, 15.9 Hz, 0 gaps > 150 ms
+
+/vehicle_control: 11155 msgs, 16.3 Hz, 0 gaps > 150 ms
+
+Deadman (button index 5) releases: 11 (2 shorter than 300 ms)
+  t=   90.5s  released for    1219 ms
+  t=  343.0s  released for  168892 ms
+  t=  515.8s  released for     824 ms
+  t=  519.2s  released for     128 ms  <-- suspicious (short)
+  t=  523.6s  released for     348 ms
+  t=  525.0s  released for    6140 ms
+  t=  572.9s  released for     324 ms
+  t=  590.2s  released for      89 ms  <-- suspicious (short)
+  t=  597.5s  released for     436 ms
+  t=  604.2s  released for     956 ms
+  t=  627.5s  released for     712 ms
+  t=  678.1s  released, not pressed again before end of bag

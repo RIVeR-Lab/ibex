@@ -13,11 +13,11 @@ with speed above START_SPEED) becomes one event. For each it reports:
     stopped: a deadman or watchdog stop, not a hold. Releasing the deadman after the vehicle
     has stopped is normal and doesn't count; the level is measured only over the part of the
     application before that point.
-then a summary by level and a brake map. The map uses every application's steady
-deceleration, including deadman stops, because that reading is taken only before the
-deadman release; stopping distances use clean holds only. The map is a table by brake
-band (which can show a non-linear brake), plus a straight-line fit, decel = k * (brake - b0),
-that is flagged when it doesn't describe the data (r below MIN_FIT_R).
+then a summary by level and a brake map. Both use applications that start above
+MAP_MIN_SPEED at a steady level (slow positioning stops can't be measured); deadman stops
+count for deceleration, which is read before the release, but not for stopping distance.
+The map is a table by brake level (which can show a non-linear brake), plus a straight-line
+fit, decel = k * (brake - b0), flagged when it doesn't describe the data (r below MIN_FIT_R).
 
 Usage:
   python3 extract_steering_bags.py ~/ibex_ws/rosbag_library/brake_*/ -o ~/ibex_analysis
@@ -42,8 +42,9 @@ STEADY_FROM_S = 1.0      # steady deceleration is measured from this long after 
                          # brake takes about 1 s to build; 0.5 s for stops too short)...
 STEADY_UNTIL_SPEED = 0.8 # ...until speed falls below this
 TARGET_DECELS = (0.5, 1.0, 1.5, 2.0)
-BANDS = [0, 30, 60, 90, 101]   # brake bands for the map table
 MIN_FIT_R = 0.9                # below this the straight-line map is flagged as a poor fit
+MAP_MIN_SPEED = 2.5            # m/s; slower applications stop too quickly to measure steady braking
+MAP_MAX_LEVEL_STD = 5          # applications whose level wandered more than this are left out
 DEADMAN_COL = 'buttons.5'   # RB on the F710 in X mode
 STOP_HOLD_GUESS_S = 2.0     # stop_hold_time, used only when a bag has no /joy
 
@@ -222,26 +223,34 @@ def main():
         return
     allr = pd.concat(allres, ignore_index=True)
     allr.to_csv(root / 'brake_holds_all.csv', index=False)
-    holds = allr[~allr['motion_disabled_during']]   # clean holds: stopping distances
-    if (allr['motion_disabled_during']).any():
-        print(f'\n{int(allr["motion_disabled_during"].sum())} application(s) had the deadman released or '
+    # Only applications from a useful speed at a steady level feed the summary and the map;
+    # slow stops while positioning and wandering levels are listed above but left out.
+    usable = allr[(allr['speed_at_brake_mps'] >= MAP_MIN_SPEED) & (allr['level_std'] <= MAP_MAX_LEVEL_STD)]
+    left_out = len(allr) - len(usable)
+    if left_out:
+        print(f'\n{left_out} application(s) started below {MAP_MIN_SPEED} m/s or at an unsteady level '
+              f'(spread above {MAP_MAX_LEVEL_STD}): listed above, left out of the summary and the map.')
+    holds = usable[~usable['motion_disabled_during']]   # clean holds: stopping distances
+    if (usable['motion_disabled_during']).any():
+        print(f'{int(usable["motion_disabled_during"].sum())} of the rest had the deadman released or '
               'motion switched off before the vehicle stopped. Their deceleration (measured before the '
               'release) is in the brake map; their stopping distance is not used.')
+    usable = usable.assign(level_bin=(usable['level'] / 5).round() * 5)
     holds = holds.assign(level_bin=(holds['level'] / 5).round() * 5)
-    summary = holds.groupby('level_bin').agg(
+    summary = usable.groupby('level_bin').agg(
         runs=('level', 'size'), speed=('speed_at_brake_mps', 'mean'),
         dead_time=('dead_time_s', 'mean'), decel_steady=('decel_steady_mps2', 'mean'),
-        decel_steady_std=('decel_steady_mps2', 'std'), decel_mean=('decel_mean_mps2', 'mean'),
-        stop_distance=('stop_distance_m', 'mean'))
-    print('\nBy brake level (veh_brake rounded to 5):')
+        decel_steady_std=('decel_steady_mps2', 'std'))
+    summary = summary.join(holds.groupby('level_bin').agg(
+        stop_distance=('stop_distance_m', 'mean'), stop_from_speed=('speed_at_brake_mps', 'mean')))
+    print('\nBy brake level (veh_brake rounded to 5; stopping distance from clean holds only):')
     print(summary.round(2).to_string())
 
-    fit = allr.dropna(subset=['decel_steady_mps2'])
+    fit = usable.dropna(subset=['decel_steady_mps2'])
     if len(fit):
-        bands = pd.cut(fit['level'], BANDS, labels=[f'{a + 1 if a else 0}-{min(b, 100)}'
-                                                     for a, b in zip(BANDS[:-1], BANDS[1:])])
-        table = fit.groupby(bands, observed=True)['decel_steady_mps2'].agg(
+        table = fit.groupby('level_bin')['decel_steady_mps2'].agg(
             readings='count', median='median', low='min', high='max')
+        table.index.name = 'brake'
         print(f'\nBrake map table (steady deceleration in m/s2, {len(fit)} readings):')
         print(table.round(2).to_string())
         table.to_csv(root / 'brake_map_table.csv')
